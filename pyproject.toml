@@ -19,8 +19,8 @@ dependencies = [
 
 [project.optional-dependencies]
 detector = [
-    "torch>=2.5,<3",
-    "torchvision>=0.20,<1",
+    "torch==2.13.0",
+    "torchvision==0.28.0",
 ]
 
 [build-system]
@@ -33,6 +33,25 @@ dev = [
     "pre-commit>=4.6.2",
     "pytest>=9.1.1",
     "ruff>=0.16.9",
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.org/simple"
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cu130", marker = "sys_platform != 'darwin'" },
+    { index = "pypi", marker = "sys_platform == 'darwin'" },
+]
+torchvision = [
+    { index = "pytorch-cu130", marker = "sys_platform != 'darwin'" },
+    { index = "pypi", marker = "sys_platform == 'darwin'" },
 ]
 
 [tool.black]

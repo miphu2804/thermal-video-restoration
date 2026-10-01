@@ -29,7 +29,8 @@ def _torchvision_imports() -> tuple[Any, Any, Any, Any]:
     except ImportError as error:
         raise RuntimeError(
             "The torchvision detector requires the 'detector' extra. "
-            "Run `uv sync --extra detector` before training or inference."
+            "Run `uv sync --extra detector` before training or inference. "
+            "The extra installs the CUDA 13.0 build on Windows/Linux."
         ) from error
     return (
         torch,
@@ -49,7 +50,9 @@ def frame_to_tensor(frame: np.ndarray) -> Any:
     torch, *_ = _torchvision_imports()
     array = np.asarray(frame, dtype=np.float32) / 255.0
     if array.ndim != 2:
-        raise ValueError(f"Expected one thermal frame with shape (H, W), got {array.shape}")
+        raise ValueError(
+            f"Expected one thermal frame with shape (H, W), got {array.shape}"
+        )
     return torch.from_numpy(array).unsqueeze(0).repeat(3, 1, 1)
 
 
@@ -70,7 +73,9 @@ class TorchvisionCocoDataset:
         }
         unknown = set(dataset.used_category_ids) - set(self._labels)
         if unknown:
-            raise ValueError(f"Dataset contains categories outside the model map: {unknown}")
+            raise ValueError(
+                f"Dataset contains categories outside the model map: {unknown}"
+            )
 
     def __len__(self) -> int:
         return len(self.dataset.images)

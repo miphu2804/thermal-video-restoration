@@ -75,7 +75,11 @@ def _category_ap(
         return float("nan")
 
     candidates = sorted(
-        (prediction for prediction in predictions if prediction.category_id == category_id),
+        (
+            prediction
+            for prediction in predictions
+            if prediction.category_id == category_id
+        ),
         key=lambda prediction: prediction.score,
         reverse=True,
     )
@@ -96,7 +100,11 @@ def _category_ap(
         )
         order = np.argsort(ious)[::-1]
         match = next(
-            (item_index for item_index in order if not matched[prediction.image_id][item_index]),
+            (
+                item_index
+                for item_index in order
+                if not matched[prediction.image_id][item_index]
+            ),
             None,
         )
         if match is not None and ious[match] >= iou_threshold:

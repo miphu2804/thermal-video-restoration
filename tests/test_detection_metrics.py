@@ -21,9 +21,7 @@ def test_bbox_iou():
 
 
 def test_perfect_predictions_have_perfect_map():
-    result = mean_average_precision(
-        _dataset(), [Detection(1, 1, (0, 0, 10, 10), 0.9)]
-    )
+    result = mean_average_precision(_dataset(), [Detection(1, 1, (0, 0, 10, 10), 0.9)])
 
     assert result.map50 == 1.0
     assert result.map50_95 == 1.0
@@ -38,9 +36,7 @@ def test_empty_predictions_score_zero():
 
 
 def test_imperfect_box_lowers_high_iou_map():
-    result = mean_average_precision(
-        _dataset(), [Detection(1, 1, (0, 0, 8, 10), 0.9)]
-    )
+    result = mean_average_precision(_dataset(), [Detection(1, 1, (0, 0, 8, 10), 0.9)])
 
     assert result.map50 == 1.0
     assert 0.0 < result.map50_95 < 1.0

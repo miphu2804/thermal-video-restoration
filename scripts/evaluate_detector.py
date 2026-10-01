@@ -12,6 +12,7 @@ import time
 from pathlib import Path
 
 from thermal_restore.data.annotations import CocoDataset, load_coco
+from thermal_restore.detection.device import require_device
 from thermal_restore.detection.torchvision_backend import (
     TorchvisionCocoDataset,
     TorchvisionDetector,
@@ -41,7 +42,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--checkpoint", type=Path, required=True)
     parser.add_argument("--data-root", type=Path, default=Path("data/FLIR_ADAS_v2"))
     parser.add_argument(
-        "--split", choices=("val", "test"), default="test", help="Clean split to evaluate."
+        "--split",
+        choices=("val", "test"),
+        default="test",
+        help="Clean split to evaluate.",
     )
     parser.add_argument("--batch-size", type=int, default=2)
     parser.add_argument("--workers", type=int, default=0)
@@ -58,12 +62,12 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     torch, DataLoader = _require_torch()
-    if args.device == "auto":
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-    else:
-        device = args.device
-    if device == "cuda" and not torch.cuda.is_available():
-        raise SystemExit("CUDA was requested but no CUDA device is available")
+    try:
+        device_info = require_device(torch, args.device)
+    except RuntimeError as error:
+        raise SystemExit(str(error)) from error
+    device = device_info.selected
+    print(f"device={device} cuda={device_info.as_dict()}")
 
     split_name = "images_thermal_val" if args.split == "val" else "video_thermal_test"
     dataset = _split(args.data_root, split_name)

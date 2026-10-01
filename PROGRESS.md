@@ -1,5 +1,12 @@
 # Progress
 
+## 2026-10-01: CUDA-enabled detector environment and automatic device selection
+
+- **Done:** Pinned the detector extra to `torch==2.13.0` and `torchvision==0.28.0`, configured the PyTorch CUDA 13.0 index for Windows/Linux, and added a runtime CUDA probe with automatic `cuda`/`cpu` selection.
+- **Added:** `scripts/check_cuda.py` reports the selected device, CUDA runtime version, GPU name, capability, and probe errors; `--device cuda` now fails early with a useful diagnostic when CUDA is unavailable.
+- **Environment check:** Installed `torch==2.13.0+cu130` and `torchvision==0.28.0+cu130`; CUDA probe selected `NVIDIA GeForce RTX 5060 Ti` successfully.
+- **Check:** 52 tests passed, Ruff passed, and all pre-commit hooks passed. Detector training and inference were intentionally not run.
+
 ## 2026-10-01: Issue #4 detector foundation and optional torchvision backend
 
 - **Done:** COCO-to-thermal TIFF adapter, backend-neutral detections, pure mAP@0.5 and mAP@[0.5:0.95] metrics, an optional torchvision MobileNetV3-Faster R-CNN backend, and user-run training/evaluation CLIs. Training and pretrained-weight downloads were intentionally not run.

@@ -13,6 +13,7 @@ from pathlib import Path
 import numpy as np
 
 from thermal_restore.data.annotations import CocoDataset, load_coco
+from thermal_restore.detection.device import require_device
 from thermal_restore.detection.torchvision_backend import (
     TorchvisionCocoDataset,
     TorchvisionDetector,
@@ -30,14 +31,6 @@ def _require_torch():
             "Torch is not installed. Run `uv sync --extra detector` first."
         ) from error
     return torch, DataLoader
-
-
-def _device(torch, requested: str) -> str:
-    if requested == "auto":
-        return "cuda" if torch.cuda.is_available() else "cpu"
-    if requested == "cuda" and not torch.cuda.is_available():
-        raise SystemExit("CUDA was requested but no CUDA device is available")
-    return requested
 
 
 def _split(root: Path, name: str) -> CocoDataset:
@@ -96,20 +89,29 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     if args.epochs < 1 or args.batch_size < 1 or args.workers < 0:
-        raise SystemExit("epochs and batch-size must be positive; workers cannot be negative")
+        raise SystemExit(
+            "epochs and batch-size must be positive; workers cannot be negative"
+        )
 
     torch, DataLoader = _require_torch()
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
-    device = _device(torch, args.device)
+    try:
+        device_info = require_device(torch, args.device)
+    except RuntimeError as error:
+        raise SystemExit(str(error)) from error
+    device = device_info.selected
+    print(f"device={device} cuda={device_info.as_dict()}")
 
     train = _split(args.data_root, "images_thermal_train")
     validation = _split(args.data_root, "images_thermal_val")
     category_ids = train.used_category_ids
     unknown = set(validation.used_category_ids) - set(category_ids)
     if unknown:
-        raise SystemExit(f"Validation contains categories absent from training: {unknown}")
+        raise SystemExit(
+            f"Validation contains categories absent from training: {unknown}"
+        )
 
     train_loader = DataLoader(
         TorchvisionCocoDataset(train, category_ids),

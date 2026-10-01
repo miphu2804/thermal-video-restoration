@@ -5,7 +5,7 @@
 1. Pick an issue and assign yourself.
 2. Branch off the latest `dev`.
 3. Commit, push, and open a Pull Request into `dev` with `Closes #<issue-number>` in the description.
-4. At least 1 approval and passing checks are required; merge with **Squash and merge** (the branch is deleted automatically).
+4. Passing checks are required; no approval is needed (solo project). Merge with **Squash and merge** (the branch is deleted automatically).
 
 Never push directly, force-push, or manually merge into `dev` or `main`.
 
@@ -103,7 +103,7 @@ Identify related docs (e.g. the proposal section), assumptions, and anything lef
 - Rebase a personal branch onto the latest `dev` when appropriate.
 - If a pushed branch is rebased, use `--force-with-lease`, never `--force`.
 - Do not rebase or force-push shared branches.
-- Do not bypass review, CI, or branch protection.
+- Do not bypass CI or branch protection.
 
 ## Before opening a PR
 

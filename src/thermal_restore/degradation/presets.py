@@ -46,6 +46,19 @@ DEFAULT_STEPS: tuple[str, ...] = (
 
 
 def get_preset(level: str | dict[str, float]) -> dict[str, float]:
+    """Retrieve degradation parameters for a preset level or validate custom params.
+
+    Args:
+        level: Preset name (``"light"``, ``"medium"``, ``"heavy"``) or a dict of params
+            containing all keys in ``DEFAULT_STEPS``.
+
+    Returns:
+        Dictionary mapping each degradation step name to its parameter value.
+
+    Raises:
+        KeyError: If level is an unknown preset string or a dict missing required keys.
+        TypeError: If level is not a str or dict.
+    """
     if isinstance(level, str):
         if level not in LEVELS:
             raise KeyError(
@@ -53,5 +66,8 @@ def get_preset(level: str | dict[str, float]) -> dict[str, float]:
             )
         return dict(LEVELS[level])
     if isinstance(level, dict):
+        missing = set(DEFAULT_STEPS) - level.keys()
+        if missing:
+            raise KeyError(f"Missing degradation parameters: {sorted(missing)}")
         return dict(level)
     raise TypeError(f"level must be str or dict, got {type(level).__name__}")

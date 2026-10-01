@@ -50,7 +50,7 @@ def test_invalid_shape_rejected() -> None:
         with pytest.raises(ValueError, match="Expected 3D array"):
             gaussian_noise(invalid, 2.0, rng)
         with pytest.raises(ValueError, match="Expected 3D array"):
-            degrade(invalid, "light")
+            degrade(invalid, "light", rng=0)
 
 
 def test_compress_contrast(sample_sequence: np.ndarray) -> None:
@@ -180,6 +180,11 @@ def test_presets_match_proposal_3_3() -> None:
         get_preset("extreme")
 
 
+def test_presets_missing_keys_rejected() -> None:
+    with pytest.raises(KeyError, match="Missing degradation parameters"):
+        get_preset({"blur": 1.0})
+
+
 # ---------------------------------------------------------------------------
 # Pipeline tests
 # ---------------------------------------------------------------------------
@@ -219,7 +224,39 @@ def test_degrade_isolated_steps(sample_sequence: np.ndarray) -> None:
 
     # Invalid step name
     with pytest.raises(ValueError, match="Unknown degradation step"):
-        degrade(sample_sequence, level="medium", steps=["unknown_step"])
+        degrade(sample_sequence, level="medium", rng=0, steps=["unknown_step"])
+
+
+def test_degrade_step_isolation_rng_spawn(sample_sequence: np.ndarray) -> None:
+    """Same seed yields identical noise component whether earlier steps are enabled or not."""
+    # Run with only noise
+    out_noise = degrade(
+        sample_sequence, level="medium", rng=42, steps=["noise"], clip=False
+    )
+    noise_alone = out_noise - sample_sequence
+
+    # Run with fixed_stripes and noise
+    out_both = degrade(
+        sample_sequence,
+        level="medium",
+        rng=42,
+        steps=["fixed_stripes", "noise"],
+        clip=False,
+    )
+    # Run with only fixed stripes with the exact same seed
+    out_stripes = degrade(
+        sample_sequence,
+        level="medium",
+        rng=42,
+        steps=["fixed_stripes"],
+        clip=False,
+    )
+    stripes_alone = out_stripes - sample_sequence
+
+    # The noise component in out_both (out_both - sample_sequence - stripes_alone)
+    # must exactly equal noise_alone because of rng.spawn()
+    extracted_noise = out_both - sample_sequence - stripes_alone
+    assert np.allclose(extracted_noise, noise_alone, atol=1e-5)
 
 
 def test_degrade_custom_dict(sample_sequence: np.ndarray) -> None:

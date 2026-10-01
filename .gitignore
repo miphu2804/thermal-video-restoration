@@ -1,5 +1,5 @@
 # Data (FLIR ADAS must not be redistributed) and outputs
-data/
+/data/
 outputs/
 runs/
 *.pt

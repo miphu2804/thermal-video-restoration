@@ -5,3 +5,5 @@ runs/
 *.pt
 .ipynb_checkpoints/
 .env
+__pycache__/
+*.py[cod]

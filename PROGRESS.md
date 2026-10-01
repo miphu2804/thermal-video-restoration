@@ -13,3 +13,10 @@
 - **Changed files:** `src/thermal_restore/metrics/{__init__,image}.py`, `src/thermal_restore/methods/{__init__,registry,m0_identity,m1_contrast,m2_spatial}.py`, `tests/test_metrics.py`, `tests/test_methods.py`.
 - **Flow explained:** `get_method(name, **params)` validates the name and parameters, then returns a callable that checks `(T, H, W)` input. Registered names: `m0`, `hist_eq`, `clahe`, `gaussian`, `median`, `column`. MSE/PSNR use the whole array, SSIM is averaged per frame. `column` removes stripes by subtracting per-column offsets from a median-smoothed column profile.
 - **Check:** `uv run pre-commit run --all-files`, `uv run ruff check .`, `uv run pytest` (29 passed).
+
+## 2026-10-01: degradation simulator on-the-fly (#2)
+
+- **Done:** Pure function degradation operators (contrast compression, Gaussian blur, fixed pattern stripes, temporal stripes, Gaussian noise) in `src/thermal_restore/degradation/ops.py`, preset levels `light`/`medium`/`heavy` according to proposal 3.3 in `presets.py`, composable pipeline `degrade(frames, level, rng, steps=None)` in `pipeline.py`, unit tests in `tests/test_degradation.py`, and interactive demo notebook `notebooks/02_degradation_demo.ipynb`.
+- **Changed files:** `src/thermal_restore/degradation/{__init__,ops,presets,pipeline}.py`, `tests/test_degradation.py`, `notebooks/02_degradation_demo.ipynb`, `scripts/download_dataset.py`, `PROGRESS.md`.
+- **Flow explained:** All operators accept and return `(T, H, W)` `float32` arrays on the 0-255 scale. Fixed stripes use broadcasted column offsets constant across time frames; temporal stripes draw independent column offsets per frame; `steps` argument allows isolating specific degradation stages (e.g. for experiment E1).
+- **Check:** `uv run pre-commit run --all-files`, `uv run ruff check .`, `uv run pytest` (47 passed).

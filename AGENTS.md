@@ -1,36 +1,45 @@
 # AGENTS.md
 
-Hướng dẫn cho AI coding agent làm việc trong repo này.
+Instructions for AI coding agents working in this repository.
 
-## Dự án
+## Project
 
-Đồ án IMP302m: khôi phục video hồng ngoại bị suy giảm trước khi phát hiện đối tượng. Đặc tả đầy đủ ở `docs/proposal.md` — đọc mục liên quan trước khi sửa code (3.3 bộ mô phỏng, 3.4 phương pháp M0–M7, 3.6 thí nghiệm và thước đo).
+IMP302m course project: restoring degraded thermal infrared video before object detection. The full specification is in `docs/proposal.md` (Vietnamese) — read the relevant section before changing code (3.3 degradation simulator, 3.4 methods M0–M7, 3.6 experiments and metrics).
 
-## Môi trường
+## Environment
 
-- Python 3.11, quản lý bằng `uv`. Thêm dependency bằng `uv add`, không sửa tay `uv.lock`.
-- Lệnh kiểm tra: `uv run ruff check . && uv run ruff format --check . && uv run pytest`.
+- Python 3.11, managed with `uv`. Add dependencies with `uv add`; never edit `uv.lock` by hand.
+- Checks: `uv run ruff check . && uv run ruff format --check . && uv run pytest`.
 
-## Cấu trúc
+## Layout
 
 ```
 src/thermal_restore/
-  data/         # đọc FLIR ADAS 14-bit, chia tập theo chuỗi video
-  degradation/  # bộ mô phỏng suy giảm (mục 3.3)
-  methods/      # phương pháp khôi phục M0–M7
+  data/         # FLIR ADAS 14-bit loading, split by video sequence
+  degradation/  # degradation simulator (proposal 3.3)
+  methods/      # restoration methods M0–M7, registry + factory
   metrics/      # MSE, PSNR, SSIM, mAP
-tests/  notebooks/  configs/  data/ (gitignore)
+  detection/    # frozen object detector wrapper
+tests/  notebooks/  configs/  data/ (gitignored)
 ```
 
-## Quy ước
+## Design
 
-- Ưu tiên hàm thuần (numpy array vào, array ra); I/O file để ở `data/` hoặc script.
-- Tham số suy giảm tính theo thang tương đương 8-bit (0–255) như proposal.
-- Mọi thứ ngẫu nhiên nhận `seed` hoặc `np.random.Generator` để tái lập.
-- Chia tập theo chuỗi video, không theo khung (tránh rò rỉ dữ liệu).
-- Code, comment, docstring (Google style), commit message, tên branch và tiêu đề PR viết **tiếng Anh**. Chỉ tài liệu (`docs/`, README, CONTRIBUTING, mô tả issue/PR) viết tiếng Việt.
-- Không commit dữ liệu, checkpoint hay output.
+- Each package exposes small, reusable modules; import from the package, not from notebooks.
+- Prefer pure functions (numpy array in, array out); file I/O stays in `data/` or scripts.
+- Frames are `float32` arrays on the 8-bit-equivalent scale (0–255); sequences have shape `(T, H, W)`.
+- `degradation/`: one pure function per step, composed by a single `degrade(frames, level, rng)`.
+- `methods/`: every method has the signature `(frames: np.ndarray, **params) -> np.ndarray` and is registered by name; experiments build methods through `get_method(name, **params)` so E1–E4 can loop over names from config.
+- Use a class only when it owns state (e.g. the detector model, the M7 network).
+
+## Conventions
+
+- Degradation parameters use the 8-bit-equivalent scale (0–255), as in the proposal.
+- Anything random takes a `seed` or `np.random.Generator` for reproducibility.
+- Split data by video sequence, never by frame (avoids leakage).
+- Code, comments, docstrings (Google style), commit messages, branch names, PR titles, and Markdown files are in **English**. Only `docs/proposal.md` and issue/PR descriptions are in Vietnamese.
+- Never commit data, checkpoints, or outputs.
 
 ## Git
 
-Theo `CONTRIBUTING.md`: branch `<type>/<issue-number>-<short-description>`, Conventional Commits, PR vào `main` cần 1 review, squash merge.
+See `CONTRIBUTING.md`: branch `<type>/<issue-number>-<short-description>`, Conventional Commits, PRs into `main` need 1 approval, squash merge.

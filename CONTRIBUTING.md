@@ -1,22 +1,22 @@
-# Đóng góp
+# Contributing
 
-## Quy trình
+## Workflow
 
-1. Nhận một issue (tự assign).
-2. Tạo branch từ `main` mới nhất.
-3. Commit, push, mở Pull Request ghi `Closes #<số issue>`.
-4. Cần ít nhất 1 approve; merge bằng **Squash and merge** (branch tự xoá sau merge).
+1. Pick an issue and assign yourself.
+2. Branch off the latest `main`.
+3. Commit, push, and open a Pull Request with `Closes #<issue-number>` in the description.
+4. At least 1 approval is required; merge with **Squash and merge** (the branch is deleted automatically).
 
-Không push thẳng lên `main`.
+Never push directly to `main`.
 
-## Ngôn ngữ
+## Language
 
-- **Tiếng Anh:** tên branch, commit message, tiêu đề PR, tên biến/hàm, comment và docstring trong code.
-- **Tiếng Việt:** tài liệu (`docs/`, README, CONTRIBUTING, mô tả issue/PR).
+- **English:** code, comments, docstrings, commit messages, branch names, PR titles, and every Markdown file.
+- **Vietnamese:** only `docs/proposal.md` (the reading copy of the proposal) and issue/PR descriptions.
 
-## Tên branch
+## Branch names
 
-`<type>/<issue-number>-<short-description>`, tiếng Anh, chữ thường, nối bằng `-`.
+`<type>/<issue-number>-<short-description>`, lowercase, words joined by `-`.
 
 ```
 feat/002-degradation-simulator
@@ -24,36 +24,36 @@ fix/003-psnr-range
 docs/001-flir-stats
 ```
 
-## Commit message
+## Commit messages
 
-Theo [Conventional Commits](https://www.conventionalcommits.org/):
+Follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 ```
 <type>(<scope>): <short description>
 ```
 
-| Loại | Dùng khi |
+| Type | Use for |
 |---|---|
-| `feat` | Thêm tính năng (phương pháp, thước đo, loader…) |
-| `fix` | Sửa lỗi |
-| `exp` | Thí nghiệm, notebook, config chạy |
-| `docs` | Tài liệu |
-| `test` | Thêm/sửa test |
-| `refactor` | Đổi cấu trúc code, không đổi hành vi |
-| `chore` | Dependency, cấu hình tool |
+| `feat` | New functionality (method, metric, loader, ...) |
+| `fix` | Bug fix |
+| `exp` | Experiments, notebooks, run configs |
+| `docs` | Documentation |
+| `test` | Adding or changing tests |
+| `refactor` | Restructuring without behavior change |
+| `chore` | Dependencies, tooling config |
 
-Phạm vi gợi ý: `data`, `degradation`, `methods`, `metrics`, `detector`.
+Suggested scopes: `data`, `degradation`, `methods`, `metrics`, `detection`.
 
-Mô tả viết tiếng Anh, thể mệnh lệnh, chữ thường đầu câu, không chấm câu cuối. Ví dụ:
+Write the description in English, imperative mood, lowercase first word, no trailing period:
 
 ```
 feat(degradation): add fixed and temporal stripe noise
 fix(metrics): compute PSNR on 0-255 scale
 ```
 
-Vì merge bằng squash, **tiêu đề PR** sẽ thành commit trên `main` — đặt tiêu đề PR theo đúng format trên.
+Because PRs are squash-merged, the **PR title** becomes the commit on `main`, so it must follow the same format.
 
-## Trước khi mở PR
+## Before opening a PR
 
 ```bash
 uv sync
@@ -62,6 +62,6 @@ uv run ruff format .
 uv run pytest
 ```
 
-## Dữ liệu
+## Data
 
-Không commit dữ liệu, checkpoint (`*.pt`) hay output. FLIR ADAS có giấy phép không cho phân phối lại; để trong `data/` (đã gitignore).
+Never commit datasets, checkpoints (`*.pt`), or outputs. The FLIR ADAS license forbids redistribution; keep it under `data/` (gitignored).

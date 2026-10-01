@@ -1,23 +1,26 @@
 # thermal-video-restoration
 
-Khôi phục video hồng ngoại bị suy giảm trước khi phát hiện đối tượng (IMP302m). Proposal: [docs/proposal.md](docs/proposal.md).
+Restoring degraded thermal infrared video before object detection (IMP302m). Proposal (Vietnamese): [docs/proposal.md](docs/proposal.md).
 
-## Cài đặt
+## Setup
 
 ```bash
-uv sync          # Python 3.11, tạo .venv
+uv sync          # Python 3.11, creates .venv
 uv run pytest
 ```
 
-## Cấu trúc
+## Layout
 
 ```
 src/thermal_restore/
-  data/         # đọc FLIR ADAS 14-bit, chia tập theo chuỗi video
-  degradation/  # bộ mô phỏng suy giảm (mục 3.3)
-  methods/      # các phương pháp khôi phục M0–M7
+  data/         # FLIR ADAS 14-bit loading, split by video sequence
+  degradation/  # degradation simulator (proposal 3.3)
+  methods/      # restoration methods M0–M7
   metrics/      # MSE, PSNR, SSIM, mAP
-configs/        # cấu hình thí nghiệm
-notebooks/      # thử nghiệm
-data/           # dữ liệu cục bộ, không commit
+  detection/    # frozen object detector wrapper
+configs/        # experiment configs
+notebooks/      # exploration
+data/           # local data, not committed
 ```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the git workflow.

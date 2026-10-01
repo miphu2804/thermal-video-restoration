@@ -1,10 +1,8 @@
 # AGENTS.md
 
-Instructions for AI coding agents working in this repository.
-
 ## Project
 
-IMP302m course project: restoring degraded thermal infrared video before object detection. The full specification is in `docs/proposal.md` (Vietnamese) — read the relevant section before changing code (3.3 degradation simulator, 3.4 methods M0–M7, 3.6 experiments and metrics).
+Restoring degraded thermal infrared video before object detection. The full specification is in `docs/proposal.md` (Vietnamese) — read the relevant section before changing code (3.3 degradation simulator, 3.4 methods M0–M7, 3.6 experiments and metrics).
 
 ## Environment
 
@@ -15,7 +13,7 @@ IMP302m course project: restoring degraded thermal infrared video before object 
 
 ```
 src/thermal_restore/
-  data/         # FLIR ADAS 14-bit loading, split by video sequence
+  data/         # FLIR ADAS 14-bit loading (loader), split by sequence, display helpers
   degradation/  # degradation simulator (proposal 3.3)
   methods/      # restoration methods M0–M7, registry + factory
   metrics/      # MSE, PSNR, SSIM, mAP

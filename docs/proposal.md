@@ -49,14 +49,21 @@ Video nhiệt gốc được làm suy giảm bằng bộ mô phỏng, sau đó k
 
 | Bộ dữ liệu | Nội dung | Định dạng | Vai trò |
 |---|---|---|---|
-| FLIR ADAS [11] | 26.442 khung có nhãn, hơn 520.000 khung bao quanh, 15 loại đối tượng. Phần video: 7.498 khung ghi ở 24 Hz, khung nhiệt và khung thường khớp 1:1. Camera 640×512. | Nhiệt 14-bit TIFF (chưa qua AGC); nhiệt 8-bit JPEG; nhãn dạng MSCOCO | Bộ chính. Khung 14-bit làm ảnh gốc. Giấy phép phi thương mại, không phân phối lại. |
+| FLIR ADAS [11] | 26.442 khung có nhãn (theo README của bộ dữ liệu), hơn 520.000 khung bao quanh, 15 loại đối tượng. Phần video: 7.498 khung gồm 3.749 cặp khung nhiệt và khung thường khớp 1:1, ghi ở 30 FPS (số cặp và khớp 1:1 xác minh từ dữ liệu; 30 FPS theo README vì dữ liệu không có dấu thời gian). Camera 640×512 (xác minh từ dữ liệu). | Nhiệt 14-bit TIFF (chưa qua AGC); nhiệt 8-bit JPEG; nhãn dạng MSCOCO | Bộ chính. Khung 14-bit làm ảnh gốc. Giấy phép phi thương mại, không phân phối lại. |
 | SCaN-TIR [5] | Khoảng 32,5 nghìn cặp ảnh 640×512 sạch và nhiễu thật, 9 chuỗi liên tục, ghi bằng hai camera đặt cạnh nhau (một camera tắt NUC). | Ảnh nhiệt 8-bit, không có nhãn phát hiện | Tuỳ chọn. Kiểm chứng trên nhiễu thật, chỉ đo PSNR và SSIM. |
 | LLVIP [13] | 15.488 cặp ảnh hồng ngoại và ảnh thường, 26 địa điểm, cảnh đường phố buổi tối, có nhãn người đi bộ. | Ảnh hồng ngoại, nhãn khung bao quanh | Tuỳ chọn. Kiểm tra detector trên bộ dữ liệu thứ hai. |
 
 - **Chia theo chuỗi video, không chia theo khung.** Khung liền kề gần như giống nhau, nên chia theo khung gây rò rỉ dữ liệu. Tỉ lệ 70% / 15% / 15% cho huấn luyện / chọn tham số / kiểm tra.
 - Chọn tham số trên tập chọn tham số, báo cáo trên tập kiểm tra.
 
-> **Cần xác minh khi tải về:** số khung video thực tế và tốc độ khung (trang FLIR ghi 24 Hz, bản mô tả cũ của DSIAC [12] nhắc đến 30 khung/giây và lấy mẫu thưa 1–2 khung/giây ở phần ảnh có nhãn); hai con số 26.442 và 7.498 có giao nhau không; số cặp của LLVIP (bản arXiv đầu ghi 16.836 cặp, bản mới nhất ghi 15.488); giấy phép và việc phát hành của SCaN-TIR.
+> **Kết quả xác minh trên bản FLIR ADAS v2 đã tải về** (phần nhiệt, 14-bit TIFF `uint16`, 512×640):
+> - Tổng 15.635 khung nhiệt, 158 chuỗi: huấn luyện 10.742 khung (133 chuỗi), kiểm định 1.144 khung (17 chuỗi), video 3.749 khung (8 chuỗi). Ba phần không có chuỗi chung (xác minh từ dữ liệu).
+> - Tốc độ khung: 30 FPS, không phải 24 Hz (theo README đi kèm dữ liệu; dữ liệu không có dấu thời gian nên chưa đo trực tiếp được). Trong phần video, 3.738 trên 3.741 bước giữa hai khung liền kề cách nhau đúng 1 chỉ số khung; có 11 đoạn liên tục, đoạn dài nhất 565 khung (xác minh từ dữ liệu).
+> - 7.498 khung video là 3.749 khung nhiệt cộng 3.749 khung thường, không phải 7.498 khung nhiệt (xác minh từ dữ liệu: 3.749 tệp nhiệt và 3.749 cặp trong `rgb_to_thermal_vid_map.json`). Con số 26.442 đã gồm 7.498 này (README: 9.711 + 9.233 + 7.498 = 26.442). Số ảnh nhiệt huấn luyện và kiểm định trên đĩa là 11.886, lớn hơn 9.711 trong README; chưa rõ nguyên nhân.
+> - Phần ảnh có nhãn (huấn luyện, kiểm định) lấy thưa: hai khung liền nhau trong cùng chuỗi thường cách nhau 10–300 chỉ số khung, không có đoạn nào liên tục quá 2 khung, nên chỉ phần video dùng được cho các phương pháp nhiều khung (xác minh từ dữ liệu).
+> - Nhãn nhiệt có 254.053 khung bao quanh (xác minh từ dữ liệu); con số hơn 520.000 ở trên chưa đối chiếu được.
+>
+> **Còn cần xác minh:** số cặp của LLVIP (bản arXiv đầu ghi 16.836 cặp, bản mới nhất ghi 15.488); giấy phép và việc phát hành của SCaN-TIR.
 
 ### 3.3 Bộ mô phỏng suy giảm
 

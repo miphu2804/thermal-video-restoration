@@ -1,0 +1,19 @@
+name: main-source
+
+# main only accepts releases from dev and hotfixes from hotfix/*.
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  check-source:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require dev or hotfix/* as source branch
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          case "$HEAD_REF" in
+            dev|hotfix/*) echo "OK: $HEAD_REF -> main" ;;
+            *) echo "::error::PRs into main must come from dev or hotfix/*, not '$HEAD_REF'"; exit 1 ;;
+          esac

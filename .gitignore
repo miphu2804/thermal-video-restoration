@@ -1,0 +1,6 @@
+# Data (FLIR ADAS must not be redistributed) and outputs
+data/
+outputs/
+runs/
+*.pt
+.ipynb_checkpoints/

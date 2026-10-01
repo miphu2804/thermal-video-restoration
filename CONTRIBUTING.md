@@ -57,8 +57,9 @@ Because PRs are squash-merged, the **PR title** becomes the commit on `main`, so
 
 ```bash
 uv sync
+uv run pre-commit install   # once: isort + black on every commit (.py and .ipynb)
+uv run pre-commit run --all-files
 uv run ruff check .
-uv run ruff format .
 uv run pytest
 ```
 

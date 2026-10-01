@@ -5,7 +5,8 @@ Restoring degraded thermal infrared video before object detection (IMP302m). Pro
 ## Setup
 
 ```bash
-uv sync          # Python 3.11, creates .venv
+uv sync                  # Python 3.11, creates .venv
+uv run pre-commit install  # isort + black on commit
 uv run pytest
 ```
 
@@ -18,7 +19,7 @@ src/thermal_restore/
   methods/      # restoration methods M0–M7
   metrics/      # MSE, PSNR, SSIM, mAP
   detection/    # frozen object detector wrapper
-configs/        # experiment configs
+configs/        # experiment YAML configs
 notebooks/      # exploration
 data/           # local data, not committed
 ```

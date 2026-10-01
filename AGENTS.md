@@ -9,7 +9,7 @@ IMP302m course project: restoring degraded thermal infrared video before object 
 ## Environment
 
 - Python 3.11, managed with `uv`. Add dependencies with `uv add`; never edit `uv.lock` by hand.
-- Checks: `uv run ruff check . && uv run ruff format --check . && uv run pytest`.
+- Formatting: isort + black (also on notebooks) via pre-commit. Checks: `uv run pre-commit run --all-files && uv run ruff check . && uv run pytest`.
 
 ## Layout
 
@@ -20,7 +20,8 @@ src/thermal_restore/
   methods/      # restoration methods M0–M7, registry + factory
   metrics/      # MSE, PSNR, SSIM, mAP
   detection/    # frozen object detector wrapper
-tests/  notebooks/  configs/  data/ (gitignored)
+tests/  notebooks/  data/ (gitignored)
+configs/        # experiment YAML (method names, params, seeds); no secrets
 ```
 
 ## Design
@@ -39,6 +40,7 @@ tests/  notebooks/  configs/  data/ (gitignored)
 - Split data by video sequence, never by frame (avoids leakage).
 - Code, comments, docstrings (Google style), commit messages, branch names, PR titles, and Markdown files are in **English**. Only `docs/proposal.md` and issue/PR descriptions are in Vietnamese.
 - Never commit data, checkpoints, or outputs.
+- Secrets (if ever needed) come from environment variables or a gitignored `.env`, never from `configs/`.
 
 ## Git
 

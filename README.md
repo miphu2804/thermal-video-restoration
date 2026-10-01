@@ -5,23 +5,31 @@ Restoring degraded thermal infrared video before object detection (IMP302m). Pro
 ## Setup
 
 ```bash
-uv sync                  # Python 3.11, creates .venv
-uv run pre-commit install  # isort + black on commit
-uv run pytest
+uv sync
+uv run pre-commit install
+scripts/download_dataset.sh   # FLIR ADAS v2 thermal frames (~4.7 GB) into data/
+```
+
+Checks before a PR:
+
+```bash
+uv run pre-commit run --all-files && uv run ruff check . && uv run pytest
 ```
 
 ## Layout
 
 ```
 src/thermal_restore/
-  data/         # FLIR ADAS 14-bit loading, split by video sequence
+  data/         # FLIR ADAS 14-bit loading (loader), split by sequence, display helpers
   degradation/  # degradation simulator (proposal 3.3)
   methods/      # restoration methods M0–M7
   metrics/      # MSE, PSNR, SSIM, mAP
   detection/    # frozen object detector wrapper
 configs/        # experiment YAML configs
-notebooks/      # exploration
-data/           # local data, not committed
+notebooks/      # exploration and dataset checks
+scripts/        # dataset download
+tests/
+data/           # local data, not committed (FLIR license forbids redistribution)
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the git workflow.

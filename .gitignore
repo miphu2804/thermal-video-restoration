@@ -5,3 +5,14 @@ runs/
 *.pt
 .ipynb_checkpoints/
 .env
+
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local agent skills and metadata
+.agents/
+
+# Local Issue #4 working guideline
+/docs/issue-4-guideline.md

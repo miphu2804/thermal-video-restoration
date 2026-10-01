@@ -1,5 +1,12 @@
 # Progress
 
+## 2026-10-01: Issue #4 detector foundation and optional torchvision backend
+
+- **Done:** COCO-to-thermal TIFF adapter, backend-neutral detections, pure mAP@0.5 and mAP@[0.5:0.95] metrics, an optional torchvision MobileNetV3-Faster R-CNN backend, and user-run training/evaluation CLIs. Training and pretrained-weight downloads were intentionally not run.
+- **Changed files:** `src/thermal_restore/{data/annotations,detection/types,detection/torchvision_backend,metrics/detection}.py`, package exports, `scripts/{train_detector,evaluate_detector}.py`, detection tests, `pyproject.toml`, `uv.lock`.
+- **Flow explained:** COCO `.jpg` names are resolved to local thermal `.tiff` basenames; the train category map is preserved for validation and checkpoint loading; the detector repeats the normalized thermal channel to three channels for the pretrained torchvision backbone.
+- **Check:** 49 tests passed, `uv run ruff check .`, pre-commit hooks passed, and all three real COCO splits loaded successfully.
+
 ## 2026-10-01: FLIR ADAS loader, split by sequence, dataset download (#1)
 
 - **Done:** FLIR ADAS v2 thermal loading (14-bit TIFF to float32 on the 0-255 scale), 70/15/15 split by video sequence, display helpers, a resumable download script, and a dataset check notebook. Dataset facts verified from the downloaded data are recorded in `docs/proposal.md` (3.2).

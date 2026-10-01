@@ -17,6 +17,12 @@ dependencies = [
     "tifffile>=2026.3.3",
 ]
 
+[project.optional-dependencies]
+detector = [
+    "torch>=2.5,<3",
+    "torchvision>=0.20,<1",
+]
+
 [build-system]
 requires = ["uv_build>=0.9.26,<0.10.0"]
 build-backend = "uv_build"

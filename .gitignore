@@ -1,0 +1,6 @@
+# Dữ liệu (FLIR ADAS không được phân phối lại) và output
+data/
+outputs/
+runs/
+*.pt
+.ipynb_checkpoints/

@@ -15,10 +15,12 @@ Never push directly, force-push, or manually merge into `dev` or `main`.
 
 ```text
 feat/*, fix/*, exp/*, docs/*, chore/*  →  dev  →  main
+hotfix/*                               →  main  (then back into dev)
 ```
 
 - Open normal feature, fix, experiment, docs, and chore pull requests against `dev`.
 - Once `dev` passes its checks, open a `dev` → `main` pull request for a release. Merge it with a **merge commit**, never squash: squashing disconnects the histories of `dev` and `main` and forces a manual resync.
+- `main` only accepts pull requests from `dev` or `hotfix/<issue-number>-<short-description>`; the `check-source` workflow fails any other source branch.
 - Start hotfixes from `main`, open the pull request against `main`, then bring the same fix back into `dev`.
 - Do not introduce other long-lived branches without an explicit workflow change.
 

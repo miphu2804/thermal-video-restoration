@@ -23,8 +23,18 @@ _FRAME_RE = re.compile(
 
 
 def load_frame(path: Path) -> np.ndarray:
-    """Read one 14-bit TIFF as float32 ``(H, W)`` on the 0-255 scale."""
+    """Read one 14-bit TIFF as float32 ``(H, W)`` on the 0-255 scale.
+
+    Raises:
+        ValueError: If the frame is not a single-channel ``uint16`` image. Some
+            FLIR mirror sequences are contrast-stretched ``uint8`` and cannot be
+            converted back to 14-bit counts, so they must not be rescaled.
+    """
     raw = tifffile.imread(path)
+    if raw.dtype != np.uint16:
+        raise ValueError(
+            f"{path}: expected a 14-bit uint16 frame, got dtype {raw.dtype}"
+        )
     if raw.ndim != 2:
         raise ValueError(
             f"{path}: expected a single-channel frame, got shape {raw.shape}"

@@ -46,13 +46,19 @@ def inspect_device(torch: Any, requested: str = "auto") -> DeviceInfo:
         if cuda_available:
             device_count = int(torch.cuda.device_count())
             device_name = str(torch.cuda.get_device_name(0))
-            device_capability = tuple(int(value) for value in torch.cuda.get_device_capability(0))
+            device_capability = tuple(
+                int(value) for value in torch.cuda.get_device_capability(0)
+            )
             torch.empty(1, device="cuda").item()
     except (AssertionError, OSError, RuntimeError) as error:
         cuda_available = False
         cuda_error = f"{type(error).__name__}: {error}"
 
-    selected = "cuda" if requested == "cuda" or (requested == "auto" and cuda_available) else "cpu"
+    selected = (
+        "cuda"
+        if requested == "cuda" or (requested == "auto" and cuda_available)
+        else "cpu"
+    )
     return DeviceInfo(
         requested=requested,
         selected=selected,

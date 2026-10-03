@@ -1,5 +1,12 @@
 # Progress
 
+## 2026-10-03: reject non-uint16 frames in load_frame (#14)
+
+- **Done:** `load_frame` raises a `ValueError` naming the file and dtype for any TIFF that is not `uint16`, instead of silently rescaling it. Choosing how to handle the two 8-bit sequences (`video-ZAtDSNuZZjkZFvMAo`, `video-t3f7QC8hZr6zYXpEZ`) is still open.
+- **Changed files:** `src/thermal_restore/data/loader.py`, `tests/test_loader.py`, `PROGRESS.md`.
+- **Flow explained:** `load_frame` checks `raw.dtype` before scaling by 255/16383; contrast-stretched `uint8` frames cannot be converted back to 14-bit counts, so they are refused. Loading either 8-bit sequence now fails loudly.
+- **Check:** `uv run pre-commit run --all-files`, `uv run ruff check .`, `uv run pytest` (50 passed).
+
 ## 2026-10-01: FLIR ADAS loader, split by sequence, dataset download (#1)
 
 - **Done:** FLIR ADAS v2 thermal loading (14-bit TIFF to float32 on the 0-255 scale), 70/15/15 split by video sequence, display helpers, a resumable download script, and a dataset check notebook. Dataset facts verified from the downloaded data are recorded in `docs/proposal.md` (3.2).

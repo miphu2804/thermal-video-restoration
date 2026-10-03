@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 import tifffile
 
 from thermal_restore.data.loader import (
@@ -19,6 +20,13 @@ def test_load_frame_scales_14bit_to_8bit(tmp_path):
     frame = load_frame(tmp_path / "f.tiff")
     assert frame.dtype == np.float32 and frame.shape == (4, 6)
     assert np.allclose(frame, 255.0)
+
+
+def test_load_frame_rejects_non_uint16(tmp_path):
+    path = tmp_path / "f8.tiff"
+    tifffile.imwrite(path, np.full((4, 6), 200, dtype=np.uint8))
+    with pytest.raises(ValueError, match=r"f8\.tiff.*uint8"):
+        load_frame(path)
 
 
 def test_list_and_load_sequences(tmp_path):

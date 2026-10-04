@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import math
 from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path
 from typing import Any
 
@@ -58,13 +59,17 @@ class CocoDataset:
             )
         )
 
+    @cached_property
+    def annotations_by_image(self) -> dict[int, tuple[CocoAnnotation, ...]]:
+        """Index annotations once for constant-time per-image lookup."""
+        grouped: dict[int, list[CocoAnnotation]] = {}
+        for annotation in self.annotations:
+            grouped.setdefault(annotation.image_id, []).append(annotation)
+        return {image_id: tuple(items) for image_id, items in grouped.items()}
+
     def annotations_for_image(self, image_id: int) -> tuple[CocoAnnotation, ...]:
         """Return annotations belonging to one image."""
-        return tuple(
-            annotation
-            for annotation in self.annotations
-            if annotation.image_id == image_id
-        )
+        return self.annotations_by_image.get(image_id, ())
 
 
 def _box(value: Any, label: str) -> tuple[float, float, float, float]:

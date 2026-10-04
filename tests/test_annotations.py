@@ -46,6 +46,8 @@ def test_load_coco_resolves_jpeg_name_to_thermal_tiff(tmp_path):
     assert dataset.images[0].path.name.endswith(".tiff")
     assert dataset.annotations[0].bbox == (1.0, 2.0, 10.0, 20.0)
     assert dataset.used_category_ids == (1,)
+    assert dataset.annotations_for_image(7) == dataset.annotations
+    assert dataset.annotations_for_image(99) == ()
 
 
 def test_load_coco_rejects_missing_image(tmp_path):

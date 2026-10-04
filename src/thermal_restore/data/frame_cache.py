@@ -48,7 +48,9 @@ class FrameCache:
                 f"Unsupported frame cache version: {manifest.get('version')!r}"
             )
         if manifest.get("dtype") != "float32" or manifest.get("scale") != "0-255":
-            raise ValueError("Frame cache must contain float32 frames on the 0-255 scale")
+            raise ValueError(
+                "Frame cache must contain float32 frames on the 0-255 scale"
+            )
         if bool(manifest.get("allow_uint8")) != bool(allow_uint8):
             raise ValueError(
                 "Frame cache uint8 policy does not match the requested dataset policy"
@@ -64,7 +66,9 @@ class FrameCache:
             for image in dataset.images
         ]
         if manifest.get("images") != expected_images:
-            raise ValueError("Frame cache image manifest does not match the COCO dataset")
+            raise ValueError(
+                "Frame cache image manifest does not match the COCO dataset"
+            )
 
         shape = tuple(int(value) for value in manifest.get("shape", ()))
         if len(shape) != 3 or shape[0] != len(dataset.images):

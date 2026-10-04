@@ -17,6 +17,7 @@ def render_detections(
     *,
     status: str = "",
     stretch: bool = True,
+    display_limits: tuple[float, float] | None = None,
 ) -> np.ndarray:
     """Return a BGR uint8 display image; never change the model input.
 
@@ -26,8 +27,12 @@ def render_detections(
     array = np.asarray(frame)
     if array.ndim != 2 or not array.size or not np.isfinite(array).all():
         raise ValueError("Display expects a finite, non-empty (H, W) frame")
-    if stretch:
-        low, high = np.percentile(array, [1, 99])
+    if stretch or display_limits is not None:
+        low, high = (
+            np.percentile(array, [1, 99]) if display_limits is None else display_limits
+        )
+        if not np.isfinite([low, high]).all() or high < low:
+            raise ValueError("Invalid display limits")
         gray = np.clip((array - low) / max(high - low, 1e-6) * 255, 0, 255)
     else:
         gray = np.clip(array, 0, 255)
@@ -64,6 +69,28 @@ def render_detections(
             image, status, (5, 19), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1
         )
     return image
+
+
+def render_comparison(
+    frames, predictions, names, *, labels, panel_width=480, raw14=True
+):
+    """Render aligned A/B/C panels using only A's display limits for all three."""
+    if len(frames) != 3 or len(predictions) != 3 or len(labels) != 3 or panel_width < 1:
+        raise ValueError("Expected three frames, predictions and labels")
+    if any(frame.shape != frames[0].shape for frame in frames):
+        raise ValueError("Comparison frames must have identical shapes")
+    limits = tuple(np.percentile(frames[0], [1, 99])) if raw14 else (0.0, 255.0)
+    panels = []
+    for frame, candidates, label in zip(frames, predictions, labels):
+        image = render_detections(frame, candidates, names, display_limits=limits)
+        height = max(1, round(image.shape[0] * panel_width / image.shape[1]))
+        image = cv2.resize(image, (panel_width, height))
+        header = np.zeros((34, panel_width, 3), dtype=np.uint8)
+        cv2.putText(
+            header, label, (8, 23), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 1
+        )
+        panels.append(np.vstack([header, image]))
+    return np.hstack(panels)
 
 
 def ppm_bytes(bgr: np.ndarray) -> bytes:

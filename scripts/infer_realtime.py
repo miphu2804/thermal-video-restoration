@@ -15,68 +15,24 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from thermal_restore.data.experiment_config import (
+    load_restoration_config,
+    source_sequence,
+)
 from thermal_restore.data.stream import (
     iter_capture_frames,
     iter_tiff_frames,
     select_tiff_paths,
 )
 from thermal_restore.detection.device import require_device
-from thermal_restore.detection.live import ppm_bytes, render_detections
+from thermal_restore.detection.live import render_comparison, render_detections
 from thermal_restore.detection.torchvision_backend import (
     TorchvisionDetector,
     frame_to_tensor,
     normalization_for_dtype,
 )
-
-
-class LiveWindow:
-    """Own a Tk window and its pause/close state; no model state lives here."""
-
-    def __init__(self):
-        try:
-            import tkinter as tk
-        except ImportError as error:
-            raise RuntimeError(
-                "Tk is unavailable; install Python with Tcl/Tk or use --no-display"
-            ) from error
-        self.tk = tk
-        try:
-            self.root = tk.Tk()
-        except tk.TclError as error:
-            raise RuntimeError(
-                "Cannot open a Tk window; use --no-display in a headless session"
-            ) from error
-        self.root.title("Thermal detector | Space: pause | Q / Esc: quit")
-        self.label = tk.Label(self.root)
-        self.label.pack()
-        self.paused = False
-        self.closed = False
-        self.photo = None
-        self.root.protocol("WM_DELETE_WINDOW", self.close)
-        self.root.bind("<Escape>", lambda event: self.close())
-        self.root.bind("q", lambda event: self.close())
-        self.root.bind("Q", lambda event: self.close())
-        self.root.bind("<space>", self.toggle_pause)
-
-    def toggle_pause(self, event=None):
-        self.paused = not self.paused
-
-    def pump(self):
-        if not self.closed:
-            self.root.update_idletasks()
-            self.root.update()
-
-    def show(self, image):
-        if self.closed:
-            return
-        self.photo = self.tk.PhotoImage(data=ppm_bytes(image), format="PPM")
-        self.label.configure(image=self.photo)
-        self.pump()
-
-    def close(self):
-        if not self.closed:
-            self.closed = True
-            self.root.destroy()
+from thermal_restore.detection.window import LiveWindow
+from thermal_restore.experiments import build_restoration, degrade_frame
 
 
 def parse_args():
@@ -128,6 +84,33 @@ def parse_args():
     parser.add_argument(
         "--report", type=Path, help="Optional JSON timing/configuration report."
     )
+    parser.add_argument(
+        "--compare-abc",
+        action="store_true",
+        help="Show source, simulated degradation and restoration side by side.",
+    )
+    parser.add_argument(
+        "--restoration-config", type=Path, default=Path("configs/abc_baselines.json")
+    )
+    parser.add_argument(
+        "--pipeline",
+        help="Configured restoration pipeline; uses config default when omitted.",
+    )
+    parser.add_argument(
+        "--level", choices=("light", "medium", "heavy"), default="medium"
+    )
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument(
+        "--degradation-steps",
+        nargs="+",
+        choices=("contrast", "blur", "fixed_stripes", "temporal_stripes", "noise"),
+    )
+    parser.add_argument(
+        "--panel-width",
+        type=int,
+        default=480,
+        help="Display-only width of each A/B/C panel.",
+    )
     args = parser.parse_args()
     if (
         not 0 <= args.score_threshold <= 1
@@ -135,6 +118,8 @@ def parse_args():
         or args.target_fps < 0
         or (args.max_frames is not None and args.max_frames < 1)
         or (args.camera is not None and args.camera < 0)
+        or args.seed < 0
+        or args.panel_width < 1
     ):
         parser.error("Invalid threshold, target-fps, camera index or max-frames")
     if args.camera is not None and args.sequence:
@@ -150,6 +135,14 @@ def parse_args():
 
 def main():
     args = parse_args()
+    comparison_config = None
+    restore = None
+    if args.compare_abc:
+        comparison_config = load_restoration_config(args.restoration_config)
+        args.pipeline = args.pipeline or comparison_config["default_pipeline"]
+        if args.pipeline not in comparison_config["pipelines"]:
+            raise SystemExit(f"Unknown pipeline: {args.pipeline}")
+        restore = build_restoration(comparison_config["pipelines"][args.pipeline])
     if args.camera is not None:
         if not args.allow_uint8:
             raise SystemExit(
@@ -173,6 +166,7 @@ def main():
     device = require_device(torch, args.device)
     print(f"device={device.selected} cuda={device.as_dict()}")
     detector = TorchvisionDetector.from_checkpoint(args.checkpoint, device.selected)
+    detector.model.requires_grad_(False)
     if args.annotations.is_file():
         payload = json.loads(args.annotations.read_text(encoding="utf-8"))
         names = {int(item["id"]): str(item["name"]) for item in payload["categories"]}
@@ -183,8 +177,12 @@ def main():
         f"normalization={detector.input_normalization} mean={detector.input_mean} std={detector.input_std}"
     )
     print(
-        "Display-only inference: not mAP evaluation, tracking, or restoration. FPS excludes model loading; first-frame warm-up is included."
+        "Display-only inference: not mAP evaluation or tracking. Restoration runs only with --compare-abc. FPS excludes model loading; first-frame warm-up is included."
     )
+    if args.compare_abc:
+        print(
+            f"A/B/C demo: level={args.level} seed={args.seed} pipeline={args.pipeline}. One checkpoint and source-based normalization for all conditions. Three inference passes per source frame; no mAP without COCO labels."
+        )
     if args.camera is not None or (
         args.source is not None
         and args.source.suffix.lower() not in {".tif", ".tiff"}
@@ -228,13 +226,35 @@ def main():
                 allow_uint8=args.allow_uint8,
             )
             seen_dtypes[str(packet.dtype)] = {"mean": mean, "std": std}
-            tensor = frame_to_tensor(packet.pixels, mean=mean, std=std)
+            variants = [packet.pixels]
+            if args.compare_abc:
+                sequence_key = args.sequence or (
+                    source_sequence(Path(packet.label))
+                    if args.source
+                    and (
+                        args.source.is_dir()
+                        or args.source.suffix.lower() in {".tif", ".tiff"}
+                    )
+                    else str(args.source or args.camera)
+                )
+                degraded = degrade_frame(
+                    packet.pixels,
+                    sequence_key=sequence_key,
+                    frame_key=Path(packet.label).stem,
+                    level=args.level,
+                    seed=args.seed,
+                    steps=args.degradation_steps,
+                )
+                variants.extend([degraded, restore(degraded)])
+            tensors = [frame_to_tensor(frame, mean=mean, std=std) for frame in variants]
             if detector.device.type == "cuda":
                 torch.cuda.synchronize(detector.device)
             inference_started = time.perf_counter()
-            predictions = detector.predict(
-                [tensor], [packet.index], args.score_threshold
-            )
+            condition_predictions = [
+                detector.predict([tensor], [packet.index], args.score_threshold)
+                for tensor in tensors
+            ]
+            predictions = condition_predictions[0]
             if detector.device.type == "cuda":
                 torch.cuda.synchronize(detector.device)
             inference_elapsed = time.perf_counter() - inference_started
@@ -243,13 +263,38 @@ def main():
             model_fps = len(recent) / sum(recent)
             active_elapsed = time.perf_counter() - started - paused_seconds
             display_fps = count / active_elapsed if count else 0.0
-            image = render_detections(
-                packet.pixels,
-                predictions,
-                names,
-                status=f"{device.selected} | frame {packet.index} | model {model_fps:.1f} FPS | loop {display_fps:.1f} FPS | {inference_elapsed * 1000:.0f} ms | boxes {len(predictions)}",
-                stretch=packet.dtype != np.dtype(np.uint8),
-            )
+            if args.compare_abc:
+                image = render_comparison(
+                    variants,
+                    condition_predictions,
+                    names,
+                    labels=[
+                        f"A: source | boxes {len(condition_predictions[0])}",
+                        f"B: {args.level} | boxes {len(condition_predictions[1])}",
+                        f"C: {args.pipeline} | boxes {len(condition_predictions[2])}",
+                    ],
+                    panel_width=args.panel_width,
+                    raw14=packet.dtype != np.dtype(np.uint8),
+                )
+                footer = np.zeros((30, image.shape[1], 3), dtype=np.uint8)
+                cv2.putText(
+                    footer,
+                    f"{device.selected} | frame {packet.index} | A/B/C inference {inference_elapsed * 1000:.0f} ms | processing loop {display_fps:.1f} source FPS | seed {args.seed} | shared A display range",
+                    (8, 21),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5,
+                    (255, 255, 255),
+                    1,
+                )
+                image = np.vstack([image, footer])
+            else:
+                image = render_detections(
+                    packet.pixels,
+                    predictions,
+                    names,
+                    status=f"{device.selected} | frame {packet.index} | model {model_fps:.1f} FPS | loop {display_fps:.1f} FPS | {inference_elapsed * 1000:.0f} ms | boxes {len(predictions)}",
+                    stretch=packet.dtype != np.dtype(np.uint8),
+                )
             if args.output_video:
                 if writer is None:
                     args.output_video.parent.mkdir(parents=True, exist_ok=True)
@@ -309,6 +354,20 @@ def main():
         "mean_inference_ms": inference_seconds / count * 1000,
         "timing_scope": "Includes first-frame warm-up; model loading excluded; loop includes pacing and rendering; camera may buffer.",
         "output_video": str(args.output_video) if args.output_video else None,
+        "comparison": (
+            {
+                "level": args.level,
+                "seed": args.seed,
+                "steps": args.degradation_steps,
+                "pipeline": args.pipeline,
+                "stages": comparison_config["pipelines"][args.pipeline],
+                "display_policy": "Shared A percentile range for raw TIFF; 0-255 for uint8; never used as model input",
+                "inference_passes_per_source_frame": 3,
+                "labelled_evaluation": False,
+            }
+            if args.compare_abc
+            else None
+        ),
     }
     if args.report:
         args.report.parent.mkdir(parents=True, exist_ok=True)

@@ -11,7 +11,11 @@ from thermal_restore.data.stream import (
     select_tiff_paths,
 )
 from thermal_restore.detection import Detection
-from thermal_restore.detection.live import ppm_bytes, render_detections
+from thermal_restore.detection.live import (
+    ppm_bytes,
+    render_detections,
+    render_preprocessing_comparison,
+)
 from thermal_restore.detection.torchvision_backend import (
     normalization_for_dtype,
     normalize_detector_frame,
@@ -149,3 +153,34 @@ def test_agc_display_retains_intensities_and_ppm_channel_order():
     assert ppm_bytes(bgr) == b"P6\n1 1\n255\n" + bytes([30, 20, 10])
     with pytest.raises(ValueError, match="uint8 BGR"):
         ppm_bytes(gray)
+
+
+def test_preprocessing_comparison_renders_two_aligned_panels():
+    frames = [
+        np.arange(32 * 48, dtype=np.float32).reshape(32, 48),
+        np.arange(32 * 48, dtype=np.float32).reshape(32, 48) + 1,
+    ]
+    image = render_preprocessing_comparison(
+        frames, [[], []], {}, labels=["Original", "wavelet_soft"], panel_width=64
+    )
+    assert image.dtype == np.uint8
+    assert image.shape == (34 + round(64 * 32 / 48), 128, 3)
+    with pytest.raises(ValueError, match="Expected two"):
+        render_preprocessing_comparison(frames[:1], [[]], {}, labels=["Original"])
+
+
+def test_preprocessing_comparison_own_range_avoids_saturation():
+    source = np.linspace(100, 120, 32 * 48, dtype=np.float32).reshape(32, 48)
+    stretched = np.linspace(0, 255, 32 * 48, dtype=np.float32).reshape(32, 48)
+    kwargs = {"labels": ["Original", "fshs"], "panel_width": 48}
+    shared = render_preprocessing_comparison(
+        [source, stretched], [[], []], {}, **kwargs
+    )
+    own = render_preprocessing_comparison(
+        [source, stretched], [[], []], {}, own_range=(False, True), **kwargs
+    )
+    right_shared = shared[34:, 48:, 0]
+    right_own = own[34:, 48:, 0]
+    assert np.mean((right_shared == 0) | (right_shared == 255)) > 0.8
+    assert np.mean((right_own == 0) | (right_own == 255)) < 0.1
+    np.testing.assert_array_equal(shared[:, :48], own[:, :48])

@@ -112,6 +112,83 @@ OpenCV package is needed. Python must include Tcl/Tk for graphical mode.
   files are never overwritten. Data, reports and recordings belong under the
   ignored `data/` or `outputs/` directories.
 
+## Input preprocessing candidates
+
+The course notes cover several useful families: point operations, spatial
+filters, Fourier filters and wavelet denoising. The project now implements them
+as opt-in registry methods in
+`src/thermal_restore/methods/m3_preprocessing.py`. They preserve the detector
+input contract (`float32`, 0-255 scale, one grayscale channel repeated to three
+channels), but they can still move the image distribution away from the one
+used during detector training.
+
+Available configured candidates are in
+`configs/inference_preprocessing.json`: `linear`, `fshs`, robust `fshs`, `log`,
+arithmetic/geometric/harmonic/contraharmonic means, Fourier low-pass/notch and
+soft-threshold wavelet denoising. The configuration names such as `mean_3` are
+pipeline aliases; the registered method names are passed through the registry.
+
+`fshs` and `log` stretch each frame to `[out_low, out_high]` (default 0-255).
+The thermal-standardized checkpoint was trained on linear raw-14-bit frames
+(mean 113.2, std 5.7 on the 0-255 scale), so a 0-255 stretch is far out of
+distribution and collapses mAP. The `*_matched` pipelines stretch into
+100-126.5 (about mean ± 2.33 std) instead; re-derive this range if the
+checkpoint changes. They are meant for raw TIFF input; uint8 AGC video uses
+0-255 statistics, so the default range suits it. `infer_realtime.py` refuses
+a full-range stretch on raw-14-bit frames unless `--allow-range-remap` is
+passed, and both scripts record the flagged stages.
+
+`fourier_notch` targets column stripes: their offsets vary only along x, so
+their energy sits on the `fy = 0` line of the spectrum. The filter attenuates
+that line (`bandwidth`) while keeping frequencies below `preserve` along it, so
+the frame level and slow gradients survive. Use `axis="y"` for row stripes.
+Scene structure that is constant down the whole frame is attenuated as well.
+`wavelet_soft` estimates noise from the finest diagonal band (HH1) only.
+
+Use the dedicated evaluator on the labelled validation split. It applies each
+candidate directly to the same clean source frame, so this is different from
+the A/B/C experiment, where a restoration method receives a synthetically
+degraded B frame:
+
+```powershell
+uv run --extra detector python scripts/evaluate_preprocessing.py --checkpoint outputs/detector/fasterrcnn_resnet50_thermal_norm_best.pt --data-root data/FLIR_ADAS_v2 --split val --cache-root data/cache/detector_float32_v1 --device auto --batch-size 2 --pipelines m0 mean_3 fourier_lowpass fourier_notch wavelet_soft --progress-interval 10 --output-dir outputs/detector/preprocessing_val
+```
+
+Use `--max-images 4` only to check the wiring; it is not a reportable result.
+Choose any preprocessing parameters on validation and run a separately named
+test evaluation only after fixing them. In particular, do not infer a winning
+method from visual contrast alone: the previous CLAHE baseline reduced
+validation AP sharply even though the displayed image looked more contrasted.
+
+For a direct video demo, enable one configured pipeline before inference:
+
+```powershell
+uv run --extra detector python scripts/infer_realtime.py --checkpoint outputs/detector/fasterrcnn_resnet50_thermal_norm_best.pt --source data/test_inference/thermal_demo.mp4 --allow-uint8 --device auto --preprocess-pipeline wavelet_soft --target-fps 30
+```
+
+`--preprocess-pipeline` and `--compare-abc` are mutually exclusive. The demo
+shows the transformed frame sent to the model and records the selected stages
+if `--report` is supplied. It does not produce mAP without labels. Temporal
+integration, frame differencing and motion compensation from the notes are not
+included in this single-frame option because they require sequence state and
+motion alignment; adding them blindly can create ghosting.
+
+To compare the detector's response before and after preprocessing on the same
+video frame, add `--compare-preprocessing`:
+
+```powershell
+uv run --extra detector python scripts/infer_realtime.py --checkpoint outputs/detector/fasterrcnn_resnet50_thermal_norm_best.pt --source "data/test_inference/thermal_demo.mp4" --allow-uint8 --device auto --compare-preprocessing --preprocess-pipeline wavelet_soft --score-threshold 0.3 --target-fps 30
+```
+
+The left panel is the original frame plus detections; the right panel is the
+same frame after the selected pipeline plus detections. Both use the same
+checkpoint, confidence threshold and source normalization, but each source
+frame requires two detector passes. The panels share the original display range
+so contrast changes remain visible; a range-remapping pipeline (full-range
+`fshs`/`log`, CLAHE) gets its own percentile range instead, because the shared
+range would saturate it. This is a visual reference only; use
+`scripts/evaluate_preprocessing.py` on labelled validation data for mAP.
+
 ## Frozen detector A/B/C comparison
 
 The demo and evaluator share the same degradation/restoration helpers:

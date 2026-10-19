@@ -25,14 +25,23 @@ from thermal_restore.data.stream import (
     select_tiff_paths,
 )
 from thermal_restore.detection.device import require_device
-from thermal_restore.detection.live import render_comparison, render_detections
+from thermal_restore.detection.live import (
+    render_comparison,
+    render_detections,
+    render_preprocessing_comparison,
+)
 from thermal_restore.detection.torchvision_backend import (
+    NORMALIZATION_THERMAL,
     TorchvisionDetector,
     frame_to_tensor,
     normalization_for_dtype,
 )
 from thermal_restore.detection.window import LiveWindow
-from thermal_restore.experiments import build_restoration, degrade_frame
+from thermal_restore.experiments import (
+    build_restoration,
+    degrade_frame,
+    range_remapping_stages,
+)
 
 
 def parse_args():
@@ -93,6 +102,27 @@ def parse_args():
         "--restoration-config", type=Path, default=Path("configs/abc_baselines.json")
     )
     parser.add_argument(
+        "--preprocessing-config",
+        type=Path,
+        default=Path("configs/inference_preprocessing.json"),
+        help="Config used by --preprocess-pipeline for direct input preprocessing.",
+    )
+    parser.add_argument(
+        "--preprocess-pipeline",
+        help="Apply a configured preprocessing pipeline directly before inference.",
+    )
+    parser.add_argument(
+        "--allow-range-remap",
+        action="store_true",
+        help="Allow a preprocessing pipeline that stretches frames to 0-255 "
+        "with a raw-14-bit standardized detector (out of distribution).",
+    )
+    parser.add_argument(
+        "--compare-preprocessing",
+        action="store_true",
+        help="Show source+detector beside preprocessed+detector.",
+    )
+    parser.add_argument(
         "--pipeline",
         help="Configured restoration pipeline; uses config default when omitted.",
     )
@@ -124,6 +154,12 @@ def parse_args():
         parser.error("Invalid threshold, target-fps, camera index or max-frames")
     if args.camera is not None and args.sequence:
         parser.error("--sequence applies only to TIFF directories")
+    if args.compare_abc and args.preprocess_pipeline:
+        parser.error("--compare-abc and --preprocess-pipeline are mutually exclusive")
+    if args.compare_preprocessing and not args.preprocess_pipeline:
+        parser.error("--compare-preprocessing requires --preprocess-pipeline")
+    if args.compare_abc and args.compare_preprocessing:
+        parser.error("--compare-abc and --compare-preprocessing are mutually exclusive")
     if args.output_video and (
         args.output_video.suffix.lower() != ".mp4" or args.output_video.exists()
     ):
@@ -137,12 +173,31 @@ def main():
     args = parse_args()
     comparison_config = None
     restore = None
+    restore_remapped = []
+    preprocessing_config = None
+    preprocess = None
+    preprocess_remapped = []
     if args.compare_abc:
         comparison_config = load_restoration_config(args.restoration_config)
         args.pipeline = args.pipeline or comparison_config["default_pipeline"]
         if args.pipeline not in comparison_config["pipelines"]:
             raise SystemExit(f"Unknown pipeline: {args.pipeline}")
         restore = build_restoration(comparison_config["pipelines"][args.pipeline])
+        restore_remapped = range_remapping_stages(
+            comparison_config["pipelines"][args.pipeline]
+        )
+    if args.preprocess_pipeline:
+        preprocessing_config = load_restoration_config(args.preprocessing_config)
+        if args.preprocess_pipeline not in preprocessing_config["pipelines"]:
+            raise SystemExit(
+                f"Unknown preprocessing pipeline: {args.preprocess_pipeline}"
+            )
+        preprocess = build_restoration(
+            preprocessing_config["pipelines"][args.preprocess_pipeline]
+        )
+        preprocess_remapped = range_remapping_stages(
+            preprocessing_config["pipelines"][args.preprocess_pipeline]
+        )
     if args.camera is not None:
         if not args.allow_uint8:
             raise SystemExit(
@@ -167,6 +222,15 @@ def main():
     print(f"device={device.selected} cuda={device.as_dict()}")
     detector = TorchvisionDetector.from_checkpoint(args.checkpoint, device.selected)
     detector.model.requires_grad_(False)
+    # Raw 14-bit frames use the narrow training statistics, so a 0-255 stretch
+    # is far out of distribution. uint8 AGC frames use 0-255 statistics.
+    raw_range_guard = detector.input_normalization == NORMALIZATION_THERMAL
+    if raw_range_guard and (preprocess_remapped or restore_remapped):
+        print(
+            "WARNING: range-remapping stages "
+            f"{preprocess_remapped or restore_remapped} feed out-of-distribution "
+            "intensities to the detector for raw-14-bit frames; expect fewer boxes."
+        )
     if args.annotations.is_file():
         payload = json.loads(args.annotations.read_text(encoding="utf-8"))
         names = {int(item["id"]): str(item["name"]) for item in payload["categories"]}
@@ -177,11 +241,19 @@ def main():
         f"normalization={detector.input_normalization} mean={detector.input_mean} std={detector.input_std}"
     )
     print(
-        "Display-only inference: not mAP evaluation or tracking. Restoration runs only with --compare-abc. FPS excludes model loading; first-frame warm-up is included."
+        "Display-only inference: not mAP evaluation or tracking. Configured transforms run only when explicitly requested. FPS excludes model loading; first-frame warm-up is included."
     )
     if args.compare_abc:
         print(
             f"A/B/C demo: level={args.level} seed={args.seed} pipeline={args.pipeline}. One checkpoint and source-based normalization for all conditions. Three inference passes per source frame; no mAP without COCO labels."
+        )
+    if args.preprocess_pipeline:
+        print(
+            f"Input preprocessing: pipeline={args.preprocess_pipeline}. The transformed frame is sent to the detector; no mAP is available without labels."
+        )
+    if args.compare_preprocessing:
+        print(
+            "Preprocessing comparison: each source frame gets one original and one preprocessed detector pass. The panels share the source display range."
         )
     if args.camera is not None or (
         args.source is not None
@@ -226,6 +298,19 @@ def main():
                 allow_uint8=args.allow_uint8,
             )
             seen_dtypes[str(packet.dtype)] = {"mean": mean, "std": std}
+            if (
+                raw_range_guard
+                and preprocess_remapped
+                and packet.dtype != np.dtype(np.uint8)
+                and not args.allow_range_remap
+            ):
+                raise SystemExit(
+                    f"Pipeline {args.preprocess_pipeline!r} stretches raw-14-bit "
+                    f"frames to 0-255 ({', '.join(preprocess_remapped)}), far "
+                    "outside the detector's training statistics "
+                    f"(mean={detector.input_mean:.1f}, std={detector.input_std:.1f}). "
+                    "Use a *_matched pipeline or pass --allow-range-remap."
+                )
             variants = [packet.pixels]
             if args.compare_abc:
                 sequence_key = args.sequence or (
@@ -246,6 +331,13 @@ def main():
                     steps=args.degradation_steps,
                 )
                 variants.extend([degraded, restore(degraded)])
+            elif preprocess is not None:
+                preprocessed = preprocess(packet.pixels)
+                variants = (
+                    [packet.pixels, preprocessed]
+                    if args.compare_preprocessing
+                    else [preprocessed]
+                )
             tensors = [frame_to_tensor(frame, mean=mean, std=std) for frame in variants]
             if detector.device.type == "cuda":
                 torch.cuda.synchronize(detector.device)
@@ -275,6 +367,7 @@ def main():
                     ],
                     panel_width=args.panel_width,
                     raw14=packet.dtype != np.dtype(np.uint8),
+                    own_range=(False, False, bool(restore_remapped)),
                 )
                 footer = np.zeros((30, image.shape[1], 3), dtype=np.uint8)
                 cv2.putText(
@@ -287,12 +380,41 @@ def main():
                     1,
                 )
                 image = np.vstack([image, footer])
+            elif args.compare_preprocessing:
+                image = render_preprocessing_comparison(
+                    variants,
+                    condition_predictions,
+                    names,
+                    labels=[
+                        f"Original | boxes {len(condition_predictions[0])}",
+                        f"{args.preprocess_pipeline} | boxes {len(condition_predictions[1])}",
+                    ],
+                    panel_width=args.panel_width,
+                    raw14=packet.dtype != np.dtype(np.uint8),
+                    own_range=(False, bool(preprocess_remapped)),
+                )
+                footer = np.zeros((30, image.shape[1], 3), dtype=np.uint8)
+                cv2.putText(
+                    footer,
+                    f"{device.selected} | frame {packet.index} | two-pass inference {inference_elapsed * 1000:.0f} ms | processing loop {display_fps:.1f} source FPS | shared source display range",
+                    (8, 21),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5,
+                    (255, 255, 255),
+                    1,
+                )
+                image = np.vstack([image, footer])
             else:
                 image = render_detections(
-                    packet.pixels,
+                    variants[0],
                     predictions,
                     names,
-                    status=f"{device.selected} | frame {packet.index} | model {model_fps:.1f} FPS | loop {display_fps:.1f} FPS | {inference_elapsed * 1000:.0f} ms | boxes {len(predictions)}",
+                    status=f"{device.selected} | frame {packet.index} | model {model_fps:.1f} FPS | loop {display_fps:.1f} FPS | {inference_elapsed * 1000:.0f} ms | boxes {len(predictions)}"
+                    + (
+                        f" | preprocess {args.preprocess_pipeline}"
+                        if args.preprocess_pipeline
+                        else ""
+                    ),
                     stretch=packet.dtype != np.dtype(np.uint8),
                 )
             if args.output_video:
@@ -315,8 +437,13 @@ def main():
             count += 1
             work_seconds += time.perf_counter() - step_started
             if count == 1 or count % 30 == 0:
+                box_summary = (
+                    f"boxes_original={len(condition_predictions[0])} boxes_preprocessed={len(condition_predictions[1])}"
+                    if args.compare_preprocessing
+                    else f"boxes={len(predictions)}"
+                )
                 print(
-                    f"frame={packet.index} processed={count} boxes={len(predictions)} model_fps={model_fps:.2f} inference_ms={inference_elapsed * 1000:.1f} dtype={packet.dtype} mean={mean} std={std}"
+                    f"frame={packet.index} processed={count} {box_summary} model_fps={model_fps:.2f} inference_ms={inference_elapsed * 1000:.1f} dtype={packet.dtype} mean={mean} std={std}"
                 )
             if args.target_fps:
                 deadline = step_started + 1 / args.target_fps
@@ -361,11 +488,35 @@ def main():
                 "steps": args.degradation_steps,
                 "pipeline": args.pipeline,
                 "stages": comparison_config["pipelines"][args.pipeline],
-                "display_policy": "Shared A percentile range for raw TIFF; 0-255 for uint8; never used as model input",
+                "display_policy": "Shared A percentile range for raw TIFF; 0-255 for uint8; own percentile range for range-remapped C; never used as model input",
+                "range_remapping_stages": restore_remapped,
                 "inference_passes_per_source_frame": 3,
                 "labelled_evaluation": False,
             }
             if args.compare_abc
+            else None
+        ),
+        "preprocessing_comparison": (
+            {
+                "pipeline": args.preprocess_pipeline,
+                "stages": preprocessing_config["pipelines"][args.preprocess_pipeline],
+                "config": str(args.preprocessing_config),
+                "display_policy": "Shared source percentile range for raw TIFF; 0-255 for uint8; own percentile range for a range-remapped panel; never used as model input",
+                "inference_passes_per_source_frame": 2,
+                "labelled_evaluation": False,
+            }
+            if args.compare_preprocessing
+            else None
+        ),
+        "preprocessing": (
+            {
+                "pipeline": args.preprocess_pipeline,
+                "stages": preprocessing_config["pipelines"][args.preprocess_pipeline],
+                "config": str(args.preprocessing_config),
+                "range_remapping_stages": preprocess_remapped,
+                "labelled_evaluation": False,
+            }
+            if args.preprocess_pipeline
             else None
         ),
     }

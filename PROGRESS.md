@@ -1,5 +1,14 @@
 # Progress
 
+## 2026-10-17: input preprocessing candidates for inference
+
+- **Done:** Added opt-in point, spatial, Fourier and wavelet preprocessing methods in `src/thermal_restore/methods/m3_preprocessing.py`: linear point operation, full-scale/percentile stretch, logarithmic transform, arithmetic/geometric/harmonic/contraharmonic means, Fourier low-pass/notch filters and soft-threshold wavelet denoising. All preserve finite `float32` frames on the 0-255 scale and are built through the existing registry.
+- **Evaluation:** Added `scripts/evaluate_preprocessing.py` and `configs/inference_preprocessing.json`. It applies candidates directly to the same clean labelled frames with one frozen checkpoint, preserving source normalization, image IDs and AP/quality/timing reports. Parameters must be selected on validation before test.
+- **Inference:** Added `--preprocess-pipeline` to `scripts/infer_realtime.py` for direct video/camera inference. It is mutually exclusive with the synthetic A/B/C demo and records the selected stages in optional JSON reports. Temporal integration, frame differencing and motion compensation remain out of this single-frame option because they require sequence state and alignment.
+- **Visual comparison:** Added `--compare-preprocessing` to show original+detector beside preprocessed+detector for the same source frame. Both branches use the same checkpoint, threshold and normalization; each frame requires two inference passes. The shared source display range keeps contrast changes visible.
+- **Bounded checks:** Four-image CUDA preprocessing smoke: M0 reproduced clean A; FSHS/log caused a large distribution shift; mean/Fourier/wavelet candidates preserved high image similarity but did not establish a winner. Two-frame downloaded-MP4 wavelet inference completed on CUDA. These are wiring checks, not full validation conclusions.
+- **Validation:** Added 18 preprocessing tests and the two-panel rendering test; the full suite passes 122 tests. Ruff and the formatted-file pre-commit checks pass. Full candidate evaluation remains user-run on validation.
+
 ## 2026-10-04: frozen detector A/B/C demo and benchmark
 
 - **Done:** Added `--compare-abc` to interactive inference and a separate `scripts/evaluate_abc.py` validation/test entry point. Both reuse one checkpoint and registry-configured M0-M2 restoration chains from `configs/abc_baselines.json`. A is the source reference, B is simulated degradation, and every C pipeline receives the exact same B. No training or detector-weight edits occur. M3-M7 and motion-compensated temporal restoration are outside this initial baseline implementation.

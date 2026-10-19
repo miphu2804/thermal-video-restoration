@@ -11,6 +11,11 @@ from thermal_restore.degradation import degrade, fixed_stripes, get_preset
 from thermal_restore.methods import get_method
 from thermal_restore.metrics.image import mse, ssim
 
+# Stages that remap each frame to a full intensity range. Histogram methods
+# always do; fshs/log do unless an explicit output range is configured.
+_ALWAYS_REMAPPED = frozenset({"hist_eq", "clahe"})
+_REMAPPED_WITHOUT_RANGE = frozenset({"fshs", "log"})
+
 
 def _rng(seed: int, key: str) -> np.random.Generator:
     if seed < 0:
@@ -81,6 +86,26 @@ def build_restoration(stages: list[dict]) -> Callable[[np.ndarray], np.ndarray]:
         return np.clip(out[0], 0, 255).astype(np.float32)
 
     return restore
+
+
+def range_remapping_stages(stages: list[dict]) -> list[str]:
+    """Return stage names that stretch frames to the full 0-255 range.
+
+    Such output no longer matches the fixed mean/std of a detector trained on
+    linear raw-14-bit frames, so callers should warn or refuse before feeding
+    it to a ``thermal_standardize`` checkpoint.
+    """
+    flagged = []
+    for stage in stages:
+        name = stage["name"]
+        params = stage.get("params", {})
+        if name in _ALWAYS_REMAPPED or (
+            name in _REMAPPED_WITHOUT_RANGE
+            and params.get("out_low", 0.0) == 0.0
+            and params.get("out_high", 255.0) == 255.0
+        ):
+            flagged.append(name)
+    return flagged
 
 
 class QualityTotals:

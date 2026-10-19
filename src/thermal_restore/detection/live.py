@@ -71,17 +71,26 @@ def render_detections(
     return image
 
 
-def render_comparison(
-    frames, predictions, names, *, labels, panel_width=480, raw14=True
+def _render_panels(
+    frames, predictions, names, *, labels, panel_width, raw14, own_range
 ):
-    """Render aligned A/B/C panels using only A's display limits for all three."""
-    if len(frames) != 3 or len(predictions) != 3 or len(labels) != 3 or panel_width < 1:
-        raise ValueError("Expected three frames, predictions and labels")
+    """Render labelled panels side by side with source-shared display limits.
+
+    Panels flagged in ``own_range`` hold frames remapped to a full intensity
+    range (e.g. CLAHE, full-scale stretch); the source limits would saturate
+    them, so they get their own percentile stretch instead.
+    """
     if any(frame.shape != frames[0].shape for frame in frames):
         raise ValueError("Comparison frames must have identical shapes")
-    limits = tuple(np.percentile(frames[0], [1, 99])) if raw14 else (0.0, 255.0)
+    own_range = tuple(own_range or (False,) * len(frames))
+    if len(own_range) != len(frames):
+        raise ValueError("own_range must have one flag per frame")
+    shared = tuple(np.percentile(frames[0], [1, 99])) if raw14 else (0.0, 255.0)
     panels = []
-    for frame, candidates, label in zip(frames, predictions, labels):
+    for frame, candidates, label, independent in zip(
+        frames, predictions, labels, own_range
+    ):
+        limits = tuple(np.percentile(frame, [1, 99])) if independent else shared
         image = render_detections(frame, candidates, names, display_limits=limits)
         height = max(1, round(image.shape[0] * panel_width / image.shape[1]))
         image = cv2.resize(image, (panel_width, height))
@@ -91,6 +100,49 @@ def render_comparison(
         )
         panels.append(np.vstack([header, image]))
     return np.hstack(panels)
+
+
+def render_comparison(
+    frames, predictions, names, *, labels, panel_width=480, raw14=True, own_range=None
+):
+    """Render aligned A/B/C panels; B and C share A's display limits by default.
+
+    Pass ``own_range`` to give range-remapped panels their own stretch.
+    """
+    if len(frames) != 3 or len(predictions) != 3 or len(labels) != 3 or panel_width < 1:
+        raise ValueError("Expected three frames, predictions and labels")
+    return _render_panels(
+        frames,
+        predictions,
+        names,
+        labels=labels,
+        panel_width=panel_width,
+        raw14=raw14,
+        own_range=own_range,
+    )
+
+
+def render_preprocessing_comparison(
+    frames, predictions, names, *, labels, panel_width=480, raw14=True, own_range=None
+):
+    """Render source and preprocessed detector results side by side.
+
+    Both panels use the source frame's display range so visual contrast changes
+    are not hidden by independent stretching, unless ``own_range`` flags a
+    panel whose frame was remapped to a full intensity range. The limits affect
+    display only; detector tensors are prepared before this function is called.
+    """
+    if len(frames) != 2 or len(predictions) != 2 or len(labels) != 2 or panel_width < 1:
+        raise ValueError("Expected two frames, predictions and labels")
+    return _render_panels(
+        frames,
+        predictions,
+        names,
+        labels=labels,
+        panel_width=panel_width,
+        raw14=raw14,
+        own_range=own_range,
+    )
 
 
 def ppm_bytes(bgr: np.ndarray) -> bytes:

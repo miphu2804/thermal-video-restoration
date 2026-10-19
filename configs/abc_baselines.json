@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "default_pipeline": "column_median_clahe",
+  "pipelines": {
+    "m0": [{"name": "m0"}],
+    "clahe": [{"name": "clahe", "params": {"clip_limit": 2.0, "tile_grid_size": 8}}],
+    "median_clahe": [
+      {"name": "median", "params": {"size": 3}},
+      {"name": "clahe", "params": {"clip_limit": 2.0, "tile_grid_size": 8}}
+    ],
+    "column_median_clahe": [
+      {"name": "column", "params": {"size": 15}},
+      {"name": "median", "params": {"size": 3}},
+      {"name": "clahe", "params": {"clip_limit": 2.0, "tile_grid_size": 8}}
+    ]
+  }
+}

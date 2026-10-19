@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "default_pipeline": "m0",
+  "pipelines": {
+    "m0": [{"name": "m0"}],
+    "linear_neutral": [{"name": "linear", "params": {"gain": 1.0, "offset": 0.0}}],
+    "fshs": [{"name": "fshs"}],
+    "fshs_robust": [{"name": "fshs", "params": {"low_percentile": 1.0, "high_percentile": 99.0}}],
+    "fshs_robust_matched": [{"name": "fshs", "params": {"low_percentile": 1.0, "high_percentile": 99.0, "out_low": 100.0, "out_high": 126.5}}],
+    "log": [{"name": "log"}],
+    "log_matched": [{"name": "log", "params": {"out_low": 100.0, "out_high": 126.5}}],
+    "mean_3": [{"name": "mean", "params": {"size": 3}}],
+    "geometric_3": [{"name": "geometric", "params": {"size": 3}}],
+    "harmonic_3": [{"name": "harmonic", "params": {"size": 3}}],
+    "contraharmonic_3": [{"name": "contraharmonic", "params": {"size": 3, "q": 1.5}}],
+    "fourier_lowpass": [{"name": "fourier_lowpass", "params": {"cutoff": 0.15}}],
+    "fourier_notch": [{"name": "fourier_notch", "params": {"bandwidth": 0.005, "preserve": 0.01, "axis": "x"}}],
+    "wavelet_soft": [{"name": "wavelet_soft", "params": {"wavelet": "db2", "level": 1, "threshold_scale": 1.0}}]
+  }
+}

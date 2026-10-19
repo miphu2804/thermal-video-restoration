@@ -28,6 +28,8 @@ def degrade(
     rng: np.random.Generator | int,
     steps: Sequence[str] | None = None,
     clip: bool = True,
+    *,
+    fixed_offsets: np.ndarray | None = None,
 ) -> np.ndarray:
     """Apply the proposal 3.3 degradation chain to a sequence.
 
@@ -37,6 +39,9 @@ def degrade(
         rng: Generator or integer seed for reproducible degradation.
         steps: Subset of ``DEFAULT_STEPS`` to apply; ``None`` applies all in order.
         clip: Clip the output to ``[0, 255]``.
+        fixed_offsets: Optional pre-sampled ``(1, 1, W)`` column offsets for
+            streaming the same fixed pattern across sequence chunks. Values
+            are already scaled offsets; ignored if fixed stripes are disabled.
 
     Returns:
         Degraded frames, float32, same shape.
@@ -47,6 +52,13 @@ def degrade(
     """
     frames = check_frames(frames)
     params = get_preset(level)
+    if fixed_offsets is not None:
+        fixed_offsets = np.asarray(fixed_offsets, dtype=np.float32)
+        if (
+            fixed_offsets.shape != (1, 1, frames.shape[2])
+            or not np.isfinite(fixed_offsets).all()
+        ):
+            raise ValueError("fixed_offsets must be finite with shape (1, 1, W)")
 
     if steps is None:
         active_steps = list(DEFAULT_STEPS)
@@ -79,9 +91,12 @@ def degrade(
         elif step_name == "blur":
             out = gaussian_blur(out, sigma=float(params["blur"]))
         elif step_name == "fixed_stripes":
-            out = fixed_stripes(
-                out, sigma=float(params["fixed_stripes"]), rng=sub_rngs[step_name]
-            )
+            if fixed_offsets is not None:
+                out = (out + fixed_offsets).astype(np.float32)
+            else:
+                out = fixed_stripes(
+                    out, sigma=float(params["fixed_stripes"]), rng=sub_rngs[step_name]
+                )
         elif step_name == "temporal_stripes":
             out = temporal_stripes(
                 out,

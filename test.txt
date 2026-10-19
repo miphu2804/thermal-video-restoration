@@ -1,0 +1,1 @@
+uv run --extra detector python scripts/infer_realtime.py --checkpoint outputs/detector/fasterrcnn_resnet50_thermal_norm_best.pt --source data/FLIR_ADAS_v2/video_thermal_test --sequence video-ZAtDSNuZZjkZFvMAo --allow-uint8 --device auto --preprocess-pipeline wavelet_soft --compare-preprocessing

@@ -3,6 +3,7 @@ import pytest
 import tifffile
 
 from thermal_restore.data.loader import (
+    frame_dtype,
     frame_index,
     list_sequences,
     load_frame,
@@ -20,6 +21,7 @@ def test_load_frame_scales_14bit_to_8bit(tmp_path):
     frame = load_frame(tmp_path / "f.tiff")
     assert frame.dtype == np.float32 and frame.shape == (4, 6)
     assert np.allclose(frame, 255.0)
+    assert frame_dtype(tmp_path / "f.tiff") == np.dtype(np.uint16)
 
 
 def test_load_frame_rejects_non_uint16(tmp_path):
@@ -27,6 +29,16 @@ def test_load_frame_rejects_non_uint16(tmp_path):
     tifffile.imwrite(path, np.full((4, 6), 200, dtype=np.uint8))
     with pytest.raises(ValueError, match=r"f8\.tiff.*uint8"):
         load_frame(path)
+
+
+def test_load_frame_can_explicitly_read_uint8_on_display_scale(tmp_path):
+    path = tmp_path / "f8.tiff"
+    tifffile.imwrite(path, np.full((4, 6), 200, dtype=np.uint8))
+
+    frame = load_frame(path, allow_uint8=True)
+
+    assert frame.dtype == np.float32
+    assert np.allclose(frame, 200.0)
 
 
 def test_list_and_load_sequences(tmp_path):

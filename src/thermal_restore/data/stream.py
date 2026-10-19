@@ -101,10 +101,39 @@ def capture_to_thermal(raw: np.ndarray, *, allow_uint8: bool) -> np.ndarray:
     return gray.astype(np.float32)
 
 
+def letterbox_bounds(
+    frame: np.ndarray, *, threshold: float = 10.0, min_fraction: float = 0.5
+) -> tuple[slice, slice]:
+    """Return row/column slices that drop black letterbox or pillarbox bars.
+
+    A bar is a run of rows/columns from an image edge whose maximum stays at
+    or below ``threshold``. Bars detected on a mostly dark frame (content
+    under ``min_fraction`` of a dimension) are ignored rather than cropped.
+    """
+    array = np.asarray(frame)
+    if array.ndim != 2 or not array.size:
+        raise ValueError("Expected a non-empty (H, W) frame")
+    bounds = []
+    for profile in (array.max(axis=1), array.max(axis=0)):
+        content = np.flatnonzero(profile > threshold)
+        start, stop = 0, profile.size
+        if content.size:
+            start, stop = int(content[0]), int(content[-1]) + 1
+        if stop - start < min_fraction * profile.size:
+            start, stop = 0, profile.size
+        bounds.append(slice(start, stop))
+    return bounds[0], bounds[1]
+
+
 def iter_capture_frames(
-    source: Path | int, *, allow_uint8: bool
+    source: Path | int, *, allow_uint8: bool, crop_borders: bool = False
 ) -> Iterator[StreamFrame]:
-    """Read a local video/camera lazily and release it on close or error."""
+    """Read a local video/camera lazily and release it on close or error.
+
+    With ``crop_borders``, black bars found on the first frame are cropped
+    from every frame, so the detector never sees them and the frame size stays
+    constant for recording.
+    """
     if not allow_uint8:
         raise ValueError("Video/camera inputs require --allow-uint8")
     capture = cv2.VideoCapture(source if isinstance(source, int) else str(source))
@@ -112,11 +141,16 @@ def iter_capture_frames(
         if not capture.isOpened():
             raise ValueError(f"Cannot open video/camera: {source}")
         index = 0
+        crop = None
         while True:
             ok, raw = capture.read()
             if not ok:
                 break
             pixels = capture_to_thermal(raw, allow_uint8=allow_uint8)
+            if crop_borders:
+                if crop is None:
+                    crop = letterbox_bounds(pixels)
+                pixels = np.ascontiguousarray(pixels[crop])
             yield StreamFrame(index, pixels, np.dtype(np.uint8), f"frame {index}")
             index += 1
     finally:

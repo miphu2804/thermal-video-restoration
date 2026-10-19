@@ -73,6 +73,11 @@ def parse_args():
         action="store_true",
         help="Explicitly allow contrast-stretched TIFF or 8-bit AGC video/camera.",
     )
+    parser.add_argument(
+        "--keep-borders",
+        action="store_true",
+        help="Do not crop black letterbox/pillarbox bars from video/camera input.",
+    )
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
     parser.add_argument("--score-threshold", type=float, default=0.3)
     parser.add_argument(
@@ -203,7 +208,9 @@ def main():
             raise SystemExit(
                 "Video/camera requires --allow-uint8. RGB cameras are out of the thermal training domain."
             )
-        frames = iter_capture_frames(args.camera, allow_uint8=True)
+        frames = iter_capture_frames(
+            args.camera, allow_uint8=True, crop_borders=not args.keep_borders
+        )
     elif args.source.is_dir() or args.source.suffix.lower() in {".tif", ".tiff"}:
         paths = select_tiff_paths(args.source, args.sequence)
         frames = iter_tiff_frames(paths, allow_uint8=args.allow_uint8)
@@ -215,7 +222,9 @@ def main():
             raise SystemExit(
                 "Video requires an existing file, --allow-uint8, and no --sequence"
             )
-        frames = iter_capture_frames(args.source, allow_uint8=True)
+        frames = iter_capture_frames(
+            args.source, allow_uint8=True, crop_borders=not args.keep_borders
+        )
     import torch
 
     device = require_device(torch, args.device)
@@ -472,6 +481,7 @@ def main():
         "frames": count,
         "score_threshold": args.score_threshold,
         "allow_uint8": args.allow_uint8,
+        "crop_borders": not args.keep_borders,
         "source_normalization": seen_dtypes,
         "target_fps": args.target_fps,
         "active_seconds": elapsed,

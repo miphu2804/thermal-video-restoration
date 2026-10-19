@@ -12,6 +12,7 @@ from thermal_restore.data.stream import (
 )
 from thermal_restore.detection import Detection
 from thermal_restore.detection.live import (
+    fit_to_window,
     ppm_bytes,
     render_detections,
     render_preprocessing_comparison,
@@ -184,3 +185,43 @@ def test_preprocessing_comparison_own_range_avoids_saturation():
     assert np.mean((right_shared == 0) | (right_shared == 255)) > 0.8
     assert np.mean((right_own == 0) | (right_own == 255)) < 0.1
     np.testing.assert_array_equal(shared[:, :48], own[:, :48])
+
+
+def test_letterbox_bounds_crops_black_bars_only():
+    frame = np.zeros((40, 60), dtype=np.float32)
+    frame[:, 10:50] = 30
+    assert stream.letterbox_bounds(frame) == (slice(0, 40), slice(10, 50))
+    dark = np.zeros((40, 60), dtype=np.float32)
+    dark[5, 5] = 200
+    assert stream.letterbox_bounds(dark) == (slice(0, 40), slice(0, 60))
+
+
+def test_capture_crops_borders_from_first_frame(monkeypatch):
+    first = np.zeros((10, 20), dtype=np.uint8)
+    first[:, 4:16] = 50
+
+    class FakeCapture:
+        def __init__(self):
+            self.reads = [first, np.full((10, 20), 50, dtype=np.uint8)]
+
+        def isOpened(self):
+            return True
+
+        def read(self):
+            return (True, self.reads.pop(0)) if self.reads else (False, None)
+
+        def release(self):
+            pass
+
+    monkeypatch.setattr(stream.cv2, "VideoCapture", lambda source: FakeCapture())
+    frames = list(
+        stream.iter_capture_frames(Path("t.mp4"), allow_uint8=True, crop_borders=True)
+    )
+    assert [frame.pixels.shape for frame in frames] == [(10, 12), (10, 12)]
+
+
+def test_fit_to_window_keeps_aspect_ratio():
+    image = np.zeros((100, 200, 3), dtype=np.uint8)
+    assert fit_to_window(image, 800, 800).shape == (400, 800, 3)
+    assert fit_to_window(image, 100, 1000).shape == (50, 100, 3)
+    assert fit_to_window(image, 1, 0) is image

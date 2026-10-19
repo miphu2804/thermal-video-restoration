@@ -236,6 +236,11 @@ def wavelet_soft(
         finest_diagonal = coefficients[-1][2]
         sigma = np.median(np.abs(finest_diagonal)) / 0.6745
         threshold = threshold_scale * sigma * np.sqrt(2.0 * np.log(frame.size))
+        if threshold <= 0:
+            # Flat or heavily quantized frames (e.g. 8-bit compressed video)
+            # can give a zero HH1 median; pywt would then divide 0 by 0.
+            restored.append(frame)
+            continue
         filtered = [coefficients[0]]
         filtered.extend(
             tuple(pywt.threshold(band, threshold, mode="soft") for band in bands)

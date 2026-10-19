@@ -123,3 +123,12 @@ def test_wavelet_noise_estimate_ignores_scene_edges():
     edges = (100 + 30 * ((xx // 8 + yy // 8) % 2))[None].astype(np.float32)
     output = get_method("wavelet_soft")(edges)
     np.testing.assert_allclose(output, edges, atol=1e-3)
+
+
+def test_wavelet_handles_zero_noise_estimate():
+    flat = np.zeros((1, 32, 32), dtype=np.float32)
+    np.testing.assert_array_equal(get_method("wavelet_soft")(flat), flat)
+    quantized = np.full((1, 32, 32), 80, dtype=np.float32)
+    quantized[0, 8:24, 8:24] = 120
+    output = get_method("wavelet_soft")(quantized)
+    assert np.isfinite(output).all()

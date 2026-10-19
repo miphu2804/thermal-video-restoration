@@ -145,6 +145,18 @@ def render_preprocessing_comparison(
     )
 
 
+def fit_to_window(bgr: np.ndarray, width: int, height: int) -> np.ndarray:
+    """Scale a display image to fit ``width x height``, keeping aspect ratio."""
+    if width < 1 or height < 1:
+        return bgr
+    scale = min(width / bgr.shape[1], height / bgr.shape[0])
+    size = (max(1, round(bgr.shape[1] * scale)), max(1, round(bgr.shape[0] * scale)))
+    if size == (bgr.shape[1], bgr.shape[0]):
+        return bgr
+    interpolation = cv2.INTER_AREA if scale < 1 else cv2.INTER_LINEAR
+    return cv2.resize(bgr, size, interpolation=interpolation)
+
+
 def ppm_bytes(bgr: np.ndarray) -> bytes:
     """Encode an RGB PPM image for Tk without a second imaging dependency."""
     if bgr.dtype != np.uint8 or bgr.ndim != 3 or bgr.shape[2] != 3:

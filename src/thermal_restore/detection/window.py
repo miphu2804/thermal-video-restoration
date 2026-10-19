@@ -1,6 +1,6 @@
 """Tk display state shared by interactive inference demos."""
 
-from thermal_restore.detection.live import ppm_bytes
+from thermal_restore.detection.live import fit_to_window, ppm_bytes
 
 
 class LiveWindow:
@@ -21,8 +21,11 @@ class LiveWindow:
                 "Cannot open a Tk window; use --no-display in a headless session"
             ) from error
         self.root.title("Thermal detector | Space: pause | Q / Esc: quit")
-        self.label = tk.Label(self.root)
-        self.label.pack()
+        self.root.configure(background="black")
+        self.root.minsize(160, 120)
+        self.label = tk.Label(self.root, background="black")
+        self.label.pack(fill=tk.BOTH, expand=True)
+        self.sized = False
         self.paused = False
         self.closed = False
         self.photo = None
@@ -40,10 +43,24 @@ class LiveWindow:
             self.root.update()
 
     def show(self, image):
-        if not self.closed:
-            self.photo = self.tk.PhotoImage(data=ppm_bytes(image), format="PPM")
-            self.label.configure(image=self.photo)
-            self.pump()
+        """Show a BGR frame scaled to the current window, keeping aspect ratio.
+
+        The first frame sets the window size; afterwards the geometry is fixed
+        so resizing or maximizing the window rescales the video instead of the
+        image size driving the window.
+        """
+        if self.closed:
+            return
+        if self.sized:
+            image = fit_to_window(
+                image, self.label.winfo_width(), self.label.winfo_height()
+            )
+        self.photo = self.tk.PhotoImage(data=ppm_bytes(image), format="PPM")
+        self.label.configure(image=self.photo)
+        self.pump()
+        if not self.sized and not self.closed:
+            self.root.geometry(f"{self.root.winfo_width()}x{self.root.winfo_height()}")
+            self.sized = True
 
     def close(self):
         if not self.closed:

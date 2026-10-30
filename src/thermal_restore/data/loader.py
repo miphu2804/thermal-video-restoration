@@ -22,15 +22,29 @@ _FRAME_RE = re.compile(
 )
 
 
-def load_frame(path: Path) -> np.ndarray:
+def frame_dtype(path: Path) -> np.dtype:
+    """Read a TIFF frame dtype without decoding its pixel array."""
+    with tifffile.TiffFile(path) as image:
+        return np.dtype(image.pages[0].dtype)
+
+
+def load_frame(path: Path, *, allow_uint8: bool = False) -> np.ndarray:
     """Read one 14-bit TIFF as float32 ``(H, W)`` on the 0-255 scale.
 
     Raises:
-        ValueError: If the frame is not a single-channel ``uint16`` image. Some
-            FLIR mirror sequences are contrast-stretched ``uint8`` and cannot be
-            converted back to 14-bit counts, so they must not be rescaled.
+        ValueError: If the frame is not a single-channel ``uint16`` image, or
+            is ``uint8`` while ``allow_uint8`` is false. Some FLIR mirror
+            sequences are contrast-stretched ``uint8`` and cannot be converted
+            back to 14-bit counts; when explicitly allowed, they are treated as
+            already being on the 0-255 scale.
     """
     raw = tifffile.imread(path)
+    if raw.dtype == np.uint8 and allow_uint8:
+        if raw.ndim != 2:
+            raise ValueError(
+                f"{path}: expected a single-channel frame, got shape {raw.shape}"
+            )
+        return raw.astype(np.float32)
     if raw.dtype != np.uint16:
         raise ValueError(
             f"{path}: expected a 14-bit uint16 frame, got dtype {raw.dtype}"
@@ -42,9 +56,9 @@ def load_frame(path: Path) -> np.ndarray:
     return raw.astype(np.float32) * np.float32(_SCALE_14_TO_8)
 
 
-def load_sequence(paths: list[Path]) -> np.ndarray:
+def load_sequence(paths: list[Path], *, allow_uint8: bool = False) -> np.ndarray:
     """Stack frames, in the given order, into ``(T, H, W)`` float32."""
-    return np.stack([load_frame(p) for p in paths])
+    return np.stack([load_frame(p, allow_uint8=allow_uint8) for p in paths])
 
 
 def list_sequences(root: Path) -> dict[str, list[Path]]:

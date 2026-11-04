@@ -1,5 +1,12 @@
 # Progress
 
+## 2026-11-04: browser demo server and README overview
+
+- **Done:** Added `scripts/demo_server.py`, a Gradio server that runs the existing `infer_realtime.py` headless on an uploaded video, a local sample (`data/test_inference/*.mp4`) or a FLIR sequence, in A/B/C or detection-only mode, and re-encodes the result to H.264 for the browser. Rewrote the README top into an overview with quick start, results chart and documentation links.
+- **Changed files:** `scripts/demo_server.py`, `pyproject.toml`/`uv.lock` (optional extra `demo` = gradio), `README.md`, `docs/assets/abc_val_contrast_map.png`, `PROGRESS.md`.
+- **Flow explained:** One request at a time; each run reloads the checkpoint in a subprocess. Requires ffmpeg on PATH. Uploaded videos are 8-bit AGC, so no mAP.
+- **Check:** 5-frame smoke runs for a FLIR sequence (A/B/C) and an MP4 (detection only) produced `result.mp4`; server answered HTTP 200; ruff, pre-commit and 131 tests pass.
+
 ## 2026-10-17: input preprocessing candidates for inference
 
 - **Done:** Added opt-in point, spatial, Fourier and wavelet preprocessing methods in `src/thermal_restore/methods/m3_preprocessing.py`: linear point operation, full-scale/percentile stretch, logarithmic transform, arithmetic/geometric/harmonic/contraharmonic means, Fourier low-pass/notch filters and soft-threshold wavelet denoising. All preserve finite `float32` frames on the 0-255 scale and are built through the existing registry.

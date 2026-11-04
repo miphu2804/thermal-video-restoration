@@ -1,12 +1,75 @@
-# thermal-video-restoration
+# Thermal Video Restoration
 
-Restoring degraded thermal infrared video before object detection (IMP302m).
-The project compares clean, synthetically degraded and restored thermal frames
-using one frozen detector. Proposal (Vietnamese): [docs/proposal.md](docs/proposal.md).
+**Restoring degraded thermal infrared video before object detection** (IMP302m).
 
-For team members who only need to run the existing model, start with
-[Team quick start: model placement and running](#team-quick-start-model-placement-and-running)
-at the end of this README. No retraining is required.
+Thermal cameras suffer from low contrast, blur, fixed-pattern/temporal stripe
+noise and sensor noise. This project simulates those degradations on the
+FLIR ADAS 14-bit dataset, applies restoration methods M0–M7, and measures
+whether restoration helps a **frozen** object detector:
+
+```
+A: clean frame ──► degrade(level, seed) ──► B: degraded ──► restore(method) ──► C: restored
+        │                                        │                                 │
+        └────────────── same frozen detector ────┴─────────────────────────────────┘
+                     → mAP@0.5, mAP@[0.5:0.95], MSE, PSNR, SSIM
+```
+
+Full specification (Vietnamese): [docs/proposal.md](docs/proposal.md) —
+3.3 degradation simulator, 3.4 methods, 3.6 experiments and metrics.
+
+## Quick start
+
+```bash
+# 1. Environment (Python 3.11 + uv)
+uv sync --extra detector
+uv run --extra detector python scripts/check_cuda.py
+
+# 2. Data: FLIR ADAS v2 into data/ (needs ~/.kaggle/kaggle.json, ~4.7 GB)
+bash scripts/download_dataset.sh 3
+
+# 3. Live A/B/C detector demo (checkpoint placed in outputs/detector/)
+uv run --extra detector python scripts/infer_realtime.py \
+  --checkpoint outputs/detector/fasterrcnn_resnet50_thermal_norm_best.pt \
+  --source data/FLIR_ADAS_v2/video_thermal_test --sequence video-4FRnNpmSmwktFJKjg \
+  --device auto --compare-abc --pipeline column_median_clahe --level medium --seed 0
+
+# 3b. Browser demo server: upload any thermal video or pick a FLIR sequence
+#     (needs ffmpeg on PATH; opens http://127.0.0.1:7860)
+uv run --extra detector --extra demo python scripts/demo_server.py
+
+# 4. Labelled A/B/C evaluation on validation
+uv run --extra detector python scripts/evaluate_abc.py \
+  --checkpoint outputs/detector/fasterrcnn_resnet50_thermal_norm_best.pt \
+  --data-root data/FLIR_ADAS_v2 --split val --device auto \
+  --levels light --degradation-steps contrast --seeds 0 \
+  --output-dir outputs/detector/abc_val_contrast
+
+# 5. Checks before a PR
+uv run pre-commit run --all-files && uv run ruff check . && uv run pytest
+```
+
+Team members who only need to run the existing model (no retraining) should
+follow [Team quick start](#team-quick-start-model-placement-and-running).
+
+## Results
+
+Full 1,144-image FLIR validation run (2026-10-04), frozen Faster R-CNN ResNet50,
+raw14 inputs, light contrast-only degradation, seed 0:
+
+![A/B/C mAP on FLIR validation](docs/assets/abc_val_contrast_map.png)
+
+M0 (identity) reproduces B as expected; the configured CLAHE chains sharply
+reduce AP. These are negative baseline results, not evidence that restoration
+helps detection — see [Current validation finding](#current-validation-finding).
+
+## Documentation
+
+| Resource | Content |
+|---|---|
+| [docs/proposal.md](docs/proposal.md) | Project proposal and methodology (Vietnamese) |
+| [Project wiki](https://github.com/miphu2804/thermal-video-restoration/wiki) | Guides, experiment notes and results |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Branching, Conventional Commits, PR workflow |
+| [notebooks/](notebooks/) | Dataset check and degradation demo |
 
 ## Setup
 
@@ -55,14 +118,15 @@ uv run pre-commit run --all-files && uv run ruff check . && uv run pytest
 src/thermal_restore/
   data/         # FLIR ADAS 14-bit loading (loader), split by sequence, display helpers
   degradation/  # degradation simulator (proposal 3.3)
-  methods/      # restoration methods M0–M7
+  methods/      # restoration methods M0–M7, registry + get_method(name, **params)
   metrics/      # MSE, PSNR, SSIM, mAP
-  detection/    # frozen object detector wrapper
+  detection/    # frozen object detector wrapper, device selection, live inference
   experiments/  # shared A/B/C degradation and restoration helpers
 configs/        # experiment configs, including JSON A/B/C baselines
+docs/           # proposal and README assets
 notebooks/      # exploration and dataset checks
 scripts/        # download, training, inference and evaluation entry points
-tests/
+tests/          # pytest suite
 data/           # local dataset, optional caches and demo videos; not committed
 outputs/        # local checkpoints, reports and recordings; not committed
 ```
